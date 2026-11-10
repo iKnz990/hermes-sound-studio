@@ -8,8 +8,7 @@
     "build": "node scripts/build.mjs",
     "test": "node scripts/test.mjs",
     "test:browser": "node scripts/test-browser.mjs",
-    "package": "node scripts/package.mjs",
-    "catalog": "node scripts/catalog-entry.mjs"
+    "package": "node scripts/package.mjs"
   },
   "dependencies": {
     "typescript": "6.0.3"

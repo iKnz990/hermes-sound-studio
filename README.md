@@ -50,7 +50,7 @@ Install the public repository directly while catalog review is pending:
 hermes plugins install https://github.com/iKnz990/hermes-sound-studio
 ```
 
-For a reproducible install, add `--ref` followed by the full 40-character commit SHA. Catalog installs will use the exact maintainer-reviewed pin after acceptance. [Submission material](submission/README.md) includes the demo script and catalog instructions.
+For a reproducible install, add `--ref` followed by the full 40-character commit SHA. Catalog installs will use the exact maintainer-reviewed pin after acceptance.
 
 ## Built for Hermes
 

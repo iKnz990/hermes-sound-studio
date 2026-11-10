@@ -30,8 +30,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 6368,
-      "sha256": "7d47318b5d34aaff98453e0850e1897e1e9ccb5588b36b0f66b7099bffcb9242"
+      "bytes": 6273,
+      "sha256": "7c1ebb700dfc4b1a88bbd60dfd252e3b307b4210007eee126ce883db69173bba"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -460,8 +460,8 @@
     },
     {
       "path": "package.json",
-      "bytes": 725,
-      "sha256": "8002557a4af9743218ab20c017ab4d8b58143cfad7778f5eb42e892f3ab9e334"
+      "bytes": 675,
+      "sha256": "b6ae8f8e84a6fdfcd66fd2c5a244aeb41ee99c6c1e43a005170d1082c6857974"
     },
     {
       "path": "plugin.yaml",
@@ -494,11 +494,6 @@
       "sha256": "a0fc180d864f0114820403164bc177b5666ddaa0c7e37e32cf07321b18573408"
     },
     {
-      "path": "scripts/catalog-entry.mjs",
-      "bytes": 2522,
-      "sha256": "34f904e5f6ee0de5f85c2308d6b7742c5f707533d211a6e1c6c78b7c2b491b81"
-    },
-    {
       "path": "scripts/desktop-target-browser-proof.py",
       "bytes": 9170,
       "sha256": "8c95900f29c8bdcf4602c4669b219c166cd3636eb959fb5424978b378039bd8c"
@@ -520,8 +515,8 @@
     },
     {
       "path": "scripts/package.py",
-      "bytes": 3264,
-      "sha256": "ac273c2e068be25e712fc38b4a8129859e54ecf0196365fc5ba764b8d604b959"
+      "bytes": 3294,
+      "sha256": "9def1d42f2e5f69e9efa84d54e695c6628ee2707cc707afbc08b0506a9d0161f"
     },
     {
       "path": "scripts/python.mjs",
@@ -577,36 +572,6 @@
       "path": "studio_registration.py",
       "bytes": 4430,
       "sha256": "e1ca7d3a01afedb48a213994c4c86a78036e4a81a97bdc5b42ea36f9a387a70b"
-    },
-    {
-      "path": "submission/README.md",
-      "bytes": 1869,
-      "sha256": "ff458fe909e720dcfc9aee29d8a086daa50486fddeabab0300aa858426d8afd6"
-    },
-    {
-      "path": "submission/catalog-entry.yaml.template",
-      "bytes": 945,
-      "sha256": "64894732fdc32accbc6d97ad23a0d8af7050590acb9719a62e503a8c445bd6de"
-    },
-    {
-      "path": "submission/catalog-pr.md",
-      "bytes": 2744,
-      "sha256": "f58e9b77ed097ff5b494bf8c39702b2d2ae1038467ac4635106cc0fc55a108e7"
-    },
-    {
-      "path": "submission/demo-script.md",
-      "bytes": 2123,
-      "sha256": "492e63767192c5423b1ad2630ff798b2b605e1c91299321b0cd90fe0276f2965"
-    },
-    {
-      "path": "submission/project-description.md",
-      "bytes": 2175,
-      "sha256": "a1cafe9a7a0c9a69c766851f9465eebe43ef44ba28863ee21ecae92154a7fcc9"
-    },
-    {
-      "path": "submission/x-post.md",
-      "bytes": 388,
-      "sha256": "c54ef7a81a2bbdb6739ef09794574acc4142796504cef9e78008aec907877d49"
     },
     {
       "path": "synth_schema.py",
