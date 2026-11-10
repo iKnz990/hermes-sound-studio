@@ -1,5 +1,5 @@
 name: hermes-sonic-ui
-version: 0.5.0
+version: "0.5.01"
 requires_hermes: ">=0.23.0"
 description: Design, assign and compose procedural sounds inside Hermes Desktop.
 license: MIT
@@ -8,6 +8,8 @@ provides_tools:
   - audit_ui_silence
   - inject_sonic_hooks
   - sonic_create_patch
+provides_hooks:
+  - pre_tool_call
 config_schema:
   default_preset:
     type: str

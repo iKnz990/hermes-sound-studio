@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.01 — 2026-11-10
+
+- Require Hermes human approval before native TypeScript output writes or JSX/TSX injection applies; scope persistent approvals to the destination.
+- Check native paths against the host write denylist and refuse Hermes home, active profile, install and plugin trees, including resolved aliases.
+- Run the Node injector with only PATH, HOME, LANG and SYSTEMROOT on Windows; do not inherit credentials or Node preload options.
+- Add regression coverage for write approval, protected paths and real child-process environment isolation.
+
 ## 0.5.0 — 2026-11-09
 
 - Run Sound Draft in a separate background conversation without changing routes or composer drafts. Add progress, cancellation and feature-aware Fine tune review; protect newer edits from late results.

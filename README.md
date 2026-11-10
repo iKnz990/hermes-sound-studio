@@ -57,9 +57,11 @@ For a reproducible install, add `--ref` followed by the full 40-character commit
 The plugin adds its own sidebar route and status bar controls through the Desktop SDK. The agent half registers four tools:
 
 - `sonic_create_patch`: validate a supplied patch or request an optional configured-model draft for review.
-- `synthesize_ui_soundscape`: generate a six-event preset and its standalone TypeScript runtime.
+- `synthesize_ui_soundscape`: generate a six-event preset and its standalone TypeScript runtime; writing an `output_path` requires Hermes human approval.
 - `audit_ui_silence`: inspect a requested JSX/TSX project for supported event hooks.
-- `inject_sonic_hooks`: preview a hash-bound AST edit plan and apply it explicitly with backups.
+- `inject_sonic_hooks`: preview a hash-bound AST edit plan; applying it requires Hermes human approval and keeps backups.
+
+Native file paths are checked against Hermes’s write denylist. Hermes home/profile, install and plugin trees are refused. The Node parser receives only PATH, HOME, LANG and (on Windows) SYSTEMROOT.
 
 Sound Draft stays inside Studio and uses the active profile’s configured model. It shows progress and Cancel, validates the reply, and exposes the generated voices, chords, envelope, filter, modulation and effects under **Fine tune**. Audition and edit the candidate, then explicitly accept it. Existing chat drafts and event assignments stay unchanged until you act. The native `sonic_create_patch` tool remains available separately for validated/reviewable drafts; manual editing, synthesis, desktop sounds and exports remain available without inference.
 

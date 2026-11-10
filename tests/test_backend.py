@@ -181,6 +181,7 @@ class RegistrationTests(unittest.TestCase):
         class Context:
             def __init__(self): self.tools = {}; self.aux = None; self.skill = None
             def register_tool(self, **kw): self.tools[kw['name']] = kw
+            def register_hook(self, *args): pass
             def register_auxiliary_task(self, *args, **kw): self.aux = (args, kw)
             def register_skill(self, *args, **kwargs): self.skill = args
             def get_config(self, key, default=None): return default
@@ -197,6 +198,7 @@ class RegistrationTests(unittest.TestCase):
         class Context:
             def __init__(self): self.tools = {}
             def register_tool(self, **kw): self.tools[kw['name']] = kw
+            def register_hook(self, *args): pass
             def register_auxiliary_task(self, *args, **kw): pass
             def register_skill(self, *args, **kwargs): pass
             def get_config(self, key, default=None): return default
@@ -223,6 +225,7 @@ class RegistrationTests(unittest.TestCase):
         class Context:
             def __init__(self): self.tools = {}; self.llm = LLM()
             def register_tool(self, **kw): self.tools[kw['name']] = kw
+            def register_hook(self, *args): pass
             def register_auxiliary_task(self, *args, **kwargs): pass
             def register_skill(self, *args, **kwargs): pass
             def get_config(self, key, default=None): return default

@@ -9,6 +9,7 @@ import re
 import subprocess
 import tempfile
 import uuid
+from .safety import external_write_path
 
 EXCLUDES = {'.git', 'node_modules', '.next', 'dist', 'build', 'coverage', '.sonic-ui-backups'}
 MAX_FILES = 20
@@ -25,6 +26,7 @@ def _checked(root: Path, relative: str) -> Path:
     if not isinstance(relative, str) or not relative or '\\' in relative or any(part in ('', '.', '..') for part in relative.split('/')) or Path(relative).is_absolute():
         raise ValueError('invalid relative path')
     path = root.joinpath(*relative.split('/'))
+    external_write_path(path)
 
     for candidate in (path, *path.parents):
         if candidate == root.parent:
@@ -56,6 +58,17 @@ def _scan(root: Path, target: Path | None) -> list[str]:
     return sorted(candidates)
 
 
+def _minimal_node_env() -> dict[str, str]:
+    env = {key: os.environ[key] for key in ('PATH', 'HOME', 'LANG') if key in os.environ}
+    env.setdefault('PATH', os.defpath)
+    if 'HOME' not in env:
+        env['HOME'] = str(Path.home())
+    env.setdefault('LANG', 'C.UTF-8')
+    if os.name == 'nt' and 'SYSTEMROOT' in os.environ:
+        env['SYSTEMROOT'] = os.environ['SYSTEMROOT']
+    return env
+
+
 def _transform(root: Path, relative: str, source: bytes, module: str) -> tuple[bytes, list[str]]:
     node = ROOT / 'dist' / 'injector.cjs'
     if not node.is_file():
@@ -78,7 +91,8 @@ def _transform(root: Path, relative: str, source: bytes, module: str) -> tuple[b
                 pass
     request = json.dumps({'source': text, 'filePath': relative, 'importPath': import_posix, 'requireClient': next_project})
     try:
-        proc = subprocess.run(['node', str(node)], input=request, capture_output=True, text=True, timeout=8, encoding='utf-8')
+        proc = subprocess.run(['node', str(node)], input=request, capture_output=True, text=True,
+                              timeout=8, encoding='utf-8', env=_minimal_node_env())
     except (subprocess.TimeoutExpired, OSError) as exc:
         raise ValueError(f'AST parser unavailable: {type(exc).__name__}') from exc
     if proc.returncode or len(proc.stdout) > MAX_BYTES * 3:
@@ -101,7 +115,7 @@ def _transform(root: Path, relative: str, source: bytes, module: str) -> tuple[b
 
 
 def plan_injection(project_root: str | Path, target: str | Path | None = None, *, module: str = 'src/sonic-ui.ts', max_files: int = MAX_FILES) -> dict:
-    root = Path(project_root).absolute()
+    root = external_write_path(project_root)
     if not root.is_dir() or root.is_symlink() or (hasattr(root, 'is_junction') and root.is_junction()):
         raise ValueError('project_root must be an existing absolute real directory')
     if not Path(project_root).is_absolute():
@@ -144,9 +158,9 @@ def plan_injection(project_root: str | Path, target: str | Path | None = None, *
 
 def apply_injection(project_root: str | Path, plan: dict) -> dict:
     """Replan and compare complete receipt before writes; backups retained under root."""
+    root = external_write_path(project_root)
     if not isinstance(plan, dict) or not isinstance(plan.get('files'), list) or not plan['files']:
         raise ValueError('explicit nonempty hash-bound plan required')
-    root = Path(project_root).absolute()
     if not Path(project_root).is_absolute() or plan.get('root') != str(root):
         raise ValueError('root mismatch')
     if not isinstance(plan.get('module_sha256'), str):
@@ -168,6 +182,7 @@ def apply_injection(project_root: str | Path, plan: dict) -> dict:
             raise ValueError('output changed before write')
         prepared.append((path, before, after))
     backups = root / '.sonic-ui-backups'
+    external_write_path(backups)
     if backups.exists() and (not backups.is_dir() or backups.is_symlink() or (hasattr(backups, 'is_junction') and backups.is_junction())):
         raise ValueError('unsafe backup directory')
     backups.mkdir(exist_ok=True)

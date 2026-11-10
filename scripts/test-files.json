@@ -30,6 +30,7 @@
     "test_studio_backend.py",
     "test_studio_schema_parity.py",
     "test_workspace_upgrade.py",
-    "test_registration.py"
+    "test_registration.py",
+    "test_security.py"
   ]
 }

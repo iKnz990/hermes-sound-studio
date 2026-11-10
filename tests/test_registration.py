@@ -17,6 +17,7 @@ class RegistrationTests(unittest.TestCase):
             profile_name = 'other-profile'
             def __init__(self): self.tools = {}
             def register_tool(self, **kwargs): self.tools[kwargs['name']] = kwargs
+            def register_hook(self, *args): pass
             def register_auxiliary_task(self, *args, **kwargs): pass
             def register_skill(self, *args, **kwargs): pass
         ctx = Context()

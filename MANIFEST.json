@@ -1,6 +1,6 @@
 {
   "package": "hermes-sonic-ui",
-  "version": "0.5.0",
+  "version": "0.5.01",
   "kind": "source",
   "files": [
     {
@@ -15,8 +15,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 1316,
-      "sha256": "c02e9aada1223ff5c4ec68684e81be1fe356165a983298bfce53e947b3b28e8d"
+      "bytes": 1883,
+      "sha256": "f2084cbf3b4f2feeb90fdcecddb40f91fba455271723e0acf499a3e8d819027a"
     },
     {
       "path": "INSTALL.md",
@@ -30,8 +30,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 6273,
-      "sha256": "7c1ebb700dfc4b1a88bbd60dfd252e3b307b4210007eee126ce883db69173bba"
+      "bytes": 6558,
+      "sha256": "0615b1e8b2fd1a31ad08e6f8ec82a172cac83854c949833a7313593c7e42f682"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -40,8 +40,8 @@
     },
     {
       "path": "__init__.py",
-      "bytes": 7840,
-      "sha256": "afbdd0cca9f1a5905cebb8d7ca6d712cd5f19af59fb102705eee7ea68aa3d6cc"
+      "bytes": 9065,
+      "sha256": "b59477da3bf06e7de6e20c7fa92c216d9a99c2d08d23a5b6e64ed55353267632"
     },
     {
       "path": "assets/audio-engine.ts",
@@ -390,8 +390,8 @@
     },
     {
       "path": "docs/disclosures.md",
-      "bytes": 3228,
-      "sha256": "e5fe363c96e1d7ae0299e60922759b7e65c57f3e1a5da35387e139b238edc27a"
+      "bytes": 3734,
+      "sha256": "0b011653ceefcea364fe4fcfd3c07a7d27713dc32a969c10670e57994afe03fc"
     },
     {
       "path": "docs/images/banner.png",
@@ -420,8 +420,8 @@
     },
     {
       "path": "docs/verification.md",
-      "bytes": 3623,
-      "sha256": "360c3ca91063c5b51aef7df84f88bf93f840140d99c5d5b16fdf3946ddfc8843"
+      "bytes": 4210,
+      "sha256": "ec79e4b98d1353273a482e60b1bfc1992c1d6f394ef4b6a598407db9f9c9c8ad"
     },
     {
       "path": "examples/glass-chords.sound.json",
@@ -445,8 +445,8 @@
     },
     {
       "path": "injector.py",
-      "bytes": 11583,
-      "sha256": "9f5c49cf32d5cdc06ae845966c1c9975f687e12a32e197111367ffeda9040932"
+      "bytes": 12149,
+      "sha256": "ec3976b2c43acfe4fe8a4a389b679d537aba40032382633c8e01e4fcdcc2b3f3"
     },
     {
       "path": "licenses/TypeScript-LICENSE.txt",
@@ -455,23 +455,28 @@
     },
     {
       "path": "package-lock.json",
-      "bytes": 17832,
-      "sha256": "c67b27a3fe5158faf8afb0ee60b6d44b0263d1e7e8b6e87ca1ae2f1fd0e56df0"
+      "bytes": 17834,
+      "sha256": "953ba3d938e39528261a900840f7118ee2d72edbdaa7c2a66e171d8543e3ac8d"
     },
     {
       "path": "package.json",
-      "bytes": 675,
-      "sha256": "b6ae8f8e84a6fdfcd66fd2c5a244aeb41ee99c6c1e43a005170d1082c6857974"
+      "bytes": 676,
+      "sha256": "14b6952b12df41aabd854458ed02d8061bcf583141fe261e25f22916f91d35bd"
     },
     {
       "path": "plugin.yaml",
-      "bytes": 550,
-      "sha256": "f13e1577af0e05ca162e5c74585a37a326275d1b47f6d2aa8103931a41a0074d"
+      "bytes": 589,
+      "sha256": "c6b6bf1a160c146ab9a277d928ec5a67a00f03a4b4fb913f9f9f83ab0e52e0b0"
     },
     {
       "path": "requirements-dev.txt",
       "bytes": 84,
       "sha256": "30bf2eb328995b33b23e6511397b67eb09f78c127061243b65a345f7a19bec9a"
+    },
+    {
+      "path": "safety.py",
+      "bytes": 2949,
+      "sha256": "481aa9d8350e270d965bcf13f65c325b79281de36c9752d84d15935e37b46c34"
     },
     {
       "path": "scripts/audio-session-browser-proof.py",
@@ -515,8 +520,8 @@
     },
     {
       "path": "scripts/package.py",
-      "bytes": 3294,
-      "sha256": "9def1d42f2e5f69e9efa84d54e695c6628ee2707cc707afbc08b0506a9d0161f"
+      "bytes": 3306,
+      "sha256": "1afbbdf45fd888afc61f757b9c7efab5d1de6c32983e7a859d2827f651e8a2d0"
     },
     {
       "path": "scripts/python.mjs",
@@ -540,8 +545,8 @@
     },
     {
       "path": "scripts/test-files.json",
-      "bytes": 1231,
-      "sha256": "d4c230c0ccd5f0c74edc6a13d8f6ba8c87b05782544859b4e271c5da240e7066"
+      "bytes": 1256,
+      "sha256": "bf272f61dd113ba50b3687fac14480898bff174f2e91ab2d037e437ecbea936a"
     },
     {
       "path": "scripts/test.mjs",
@@ -705,8 +710,8 @@
     },
     {
       "path": "tests/test_backend.py",
-      "bytes": 14057,
-      "sha256": "ae60f677d5501c3e8b53779749c2fd11789ee64325581bee8fe3e1a151190f45"
+      "bytes": 14204,
+      "sha256": "5cd2c0f29ae47456cb00647fd03426bbb7b7b76af657152ec723d7352a64cc5b"
     },
     {
       "path": "tests/test_compose_fx_parameters.py",
@@ -715,8 +720,13 @@
     },
     {
       "path": "tests/test_registration.py",
-      "bytes": 1328,
-      "sha256": "09a9bd655912665f5610e2cac5d0e6b91e788fca2c061952a1f16ce0ee131ed8"
+      "bytes": 1377,
+      "sha256": "b44048e30ab8c399a23a4e3927d51f65574a50a7b7fa68e50e3cfaa9b46508d9"
+    },
+    {
+      "path": "tests/test_security.py",
+      "bytes": 9034,
+      "sha256": "f5832353452bac47f96e9fedb7e2a79691805e612384cb39792828ad96fab956"
     },
     {
       "path": "tests/test_studio_backend.py",
