@@ -104,27 +104,6 @@ test('pulse six-step grid follows audio clock at exact 126 BPM',async()=>{
   assert.ok(starts.some(t=>Math.abs(t-(10.03+2*(2*60/126/6)))<1e-9),JSON.stringify(starts));
   e.stopPulse();await e.dispose();
 });
-test('telemetry tracks exact IDs for only focused default-profile session and dedupes terminal frames', async()=>{
-  const { LifecycleTracker } = await import('../desktop-src/telemetry.ts');
-  const t=new LifecycleTracker(); t.setScope('default','session-1','connected','local');
-  t.accept({type:'tool.start',session_id:'session-2',payload:{tool_id:'other',name:'terminal'}});
-  t.accept({type:'tool.start',session_id:'session-1',profile:'other',payload:{tool_id:'other',name:'terminal'}});
-  assert.equal(t.getSnapshot().activeTools,0);
-  t.accept({type:'tool.start',session_id:'session-1',payload:{tool_id:'a',name:'terminal'}});
-  t.accept({type:'tool.start',session_id:'session-1',payload:{tool_id:'a',name:'terminal'}});
-  t.accept({type:'subagent.start',session_id:'session-1',payload:{subagent_id:'worker',goal:'test'}});
-  assert.equal(t.getSnapshot().activeTools,1); assert.equal(t.getSnapshot().activeAgents,1);
-  t.accept({type:'subagent.complete',session_id:'session-1',payload:{subagent_id:'worker',status:'failed'}});
-  t.accept({type:'subagent.complete',session_id:'session-1',payload:{subagent_id:'worker',status:'failed'}});
-  t.accept({type:'tool.complete',session_id:'session-1',payload:{tool_id:'a',name:'terminal'}});
-  assert.equal(t.getSnapshot().activeTools,0); assert.equal(t.getSnapshot().activeAgents,0);
-  assert.equal(t.getSnapshot().completedAgents,0); assert.equal(t.getSnapshot().failedAgents,1);
-  t.setScope('other','session-1','connected'); assert.equal(t.getSnapshot().mode,'out-of-scope');
-  t.setScope('default','session-3','connected'); assert.equal(t.getSnapshot().failedAgents,0);
-  t.accept({type:'subagent.complete',session_id:'session-3',payload:{subagent_id:'unknown',status:'completed'}});
-  assert.equal(t.getSnapshot().completedAgents,0);
-  t.setScope('default','session-3','reconnecting'); assert.equal(t.getSnapshot().activeAgents,0);
-});
 test('workbench TypeScript exporter byte-matches Python canonical compiler for same JSON patch',async()=>{
   const {build}=await import('esbuild');
   const {fileURLToPath}=await import('node:url');

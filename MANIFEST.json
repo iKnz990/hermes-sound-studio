@@ -615,8 +615,8 @@
     },
     {
       "path": "tests/audio-engine.test.mjs",
-      "bytes": 15759,
-      "sha256": "0147bd9ab930dc5417a287a0e1b6b5e2d28f81f89e0e6843cebf855e9954a9ea"
+      "bytes": 14046,
+      "sha256": "498d5e1a65d70574119bcc2c2fdced70b136eb3d7208ca01ebcb4e2c45ec9300"
     },
     {
       "path": "tests/compose-core-audio.test.mjs",
