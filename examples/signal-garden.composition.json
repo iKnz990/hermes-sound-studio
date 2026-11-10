@@ -1,0 +1,475 @@
+{
+  "schemaVersion": "Composition/v1",
+  "id": "signal-garden-demo-v1",
+  "name": "Signal Garden",
+  "tempo": 96,
+  "meter": 4,
+  "root": 57,
+  "bars": 4,
+  "layers": [
+    {
+      "id": "bass-demo",
+      "name": "Bass",
+      "patch": {
+        "schemaVersion": "SoundPatch/v1",
+        "seed": 5701,
+        "name": "Signal Bass",
+        "style": "soft",
+        "character": "Soft & Smooth",
+        "duration": 0.36,
+        "intensity": 70,
+        "baseFreq": 110,
+        "chords": [
+          0
+        ],
+        "osc1": {
+          "enabled": true,
+          "type": "triangle",
+          "vol": 0.65,
+          "tune": 0
+        },
+        "osc2": {
+          "enabled": true,
+          "type": "sine",
+          "vol": 0.25,
+          "tune": -12
+        },
+        "osc3": {
+          "enabled": false,
+          "type": "sine",
+          "vol": 0,
+          "tune": 0
+        },
+        "noise": 0,
+        "adsr": {
+          "a": 12,
+          "d": 96,
+          "s": 0.72,
+          "r": 210
+        },
+        "filter": {
+          "type": "lowpass",
+          "cutoff": 1100,
+          "res": 0.7,
+          "drive": 0.6
+        },
+        "lfo1": {
+          "enabled": false,
+          "type": "sine",
+          "rate": 1,
+          "depth": 0
+        },
+        "lfo2": {
+          "enabled": false,
+          "type": "sine",
+          "rate": 1,
+          "depth": 0
+        },
+        "env2": {
+          "enabled": false,
+          "type": "exponential",
+          "rate": 1,
+          "depth": 0.15
+        },
+        "modMatrix": [],
+        "fx": {
+          "eq": true,
+          "compressor": true,
+          "saturation": false,
+          "chorus": false,
+          "delay": false,
+          "reverb": false
+        },
+        "playback": {
+          "mode": "On event (once)",
+          "gainDb": 0,
+          "stereo": "Stereo"
+        }
+      },
+      "gainDb": -8,
+      "pan": 0,
+      "muted": false,
+      "notes": [
+        {
+          "id": "bass-1",
+          "beat": 0,
+          "duration": 1.5,
+          "pitch": 45,
+          "velocity": 0.75
+        },
+        {
+          "id": "bass-2",
+          "beat": 2,
+          "duration": 0.75,
+          "pitch": 45,
+          "velocity": 0.6
+        },
+        {
+          "id": "bass-3",
+          "beat": 4,
+          "duration": 1.5,
+          "pitch": 50,
+          "velocity": 0.75
+        },
+        {
+          "id": "bass-4",
+          "beat": 6,
+          "duration": 0.75,
+          "pitch": 50,
+          "velocity": 0.65
+        },
+        {
+          "id": "bass-5",
+          "beat": 8,
+          "duration": 1.5,
+          "pitch": 52,
+          "velocity": 0.75
+        },
+        {
+          "id": "bass-6",
+          "beat": 10,
+          "duration": 0.75,
+          "pitch": 52,
+          "velocity": 0.6
+        },
+        {
+          "id": "bass-7",
+          "beat": 12,
+          "duration": 1.5,
+          "pitch": 45,
+          "velocity": 0.75
+        },
+        {
+          "id": "bass-8",
+          "beat": 14,
+          "duration": 1,
+          "pitch": 45,
+          "velocity": 0.7
+        }
+      ]
+    },
+    {
+      "id": "chords-demo",
+      "name": "Chords",
+      "patch": {
+        "schemaVersion": "SoundPatch/v1",
+        "seed": 5702,
+        "name": "Glass Chords",
+        "style": "soft",
+        "character": "Soft & Smooth",
+        "duration": 0.7,
+        "intensity": 70,
+        "baseFreq": 220,
+        "chords": [
+          0,
+          3,
+          7
+        ],
+        "osc1": {
+          "enabled": true,
+          "type": "sine",
+          "vol": 0.45,
+          "tune": 0,
+          "detune": -4,
+          "pan": -0.25
+        },
+        "osc2": {
+          "enabled": true,
+          "type": "triangle",
+          "vol": 0.2,
+          "tune": 12,
+          "detune": 4,
+          "pan": 0.25,
+          "spread": 6
+        },
+        "osc3": {
+          "enabled": false,
+          "type": "square",
+          "vol": 0,
+          "tune": 0
+        },
+        "noise": 0,
+        "adsr": {
+          "a": 30,
+          "d": 120,
+          "s": 0.55,
+          "r": 400
+        },
+        "filter": {
+          "type": "lowpass",
+          "cutoff": 3500,
+          "res": 0.8,
+          "drive": 0
+        },
+        "lfo1": {
+          "enabled": false,
+          "type": "sine",
+          "rate": 1,
+          "depth": 0
+        },
+        "lfo2": {
+          "enabled": false,
+          "type": "sine",
+          "rate": 1,
+          "depth": 0
+        },
+        "env2": {
+          "enabled": false,
+          "type": "exponential",
+          "rate": 1,
+          "depth": 0.15
+        },
+        "modMatrix": [],
+        "fx": {
+          "eq": true,
+          "compressor": true,
+          "saturation": false,
+          "chorus": false,
+          "delay": true,
+          "reverb": true
+        },
+        "playback": {
+          "mode": "On event (once)",
+          "gainDb": 0,
+          "stereo": "Stereo"
+        }
+      },
+      "gainDb": -14,
+      "pan": 0,
+      "muted": false,
+      "notes": [
+        {
+          "id": "chord-1",
+          "beat": 0,
+          "duration": 3,
+          "pitch": 57,
+          "velocity": 0.6
+        },
+        {
+          "id": "chord-2",
+          "beat": 4,
+          "duration": 3,
+          "pitch": 62,
+          "velocity": 0.6
+        },
+        {
+          "id": "chord-3",
+          "beat": 8,
+          "duration": 3,
+          "pitch": 64,
+          "velocity": 0.6
+        },
+        {
+          "id": "chord-4",
+          "beat": 12,
+          "duration": 3,
+          "pitch": 57,
+          "velocity": 0.65
+        }
+      ]
+    },
+    {
+      "id": "lead-demo",
+      "name": "Melodic Lead",
+      "patch": {
+        "schemaVersion": "SoundPatch/v1",
+        "seed": 5703,
+        "name": "Orbit Lead",
+        "style": "soft",
+        "character": "Soft & Smooth",
+        "duration": 0.28,
+        "intensity": 70,
+        "baseFreq": 440,
+        "chords": [
+          0
+        ],
+        "osc1": {
+          "enabled": true,
+          "type": "sine",
+          "vol": 0.6,
+          "tune": 0,
+          "pan": -0.12
+        },
+        "osc2": {
+          "enabled": true,
+          "type": "triangle",
+          "vol": 0.12,
+          "tune": 12,
+          "detune": 7,
+          "pan": 0.2
+        },
+        "osc3": {
+          "enabled": false,
+          "type": "square",
+          "vol": 0,
+          "tune": 0
+        },
+        "noise": 0.01,
+        "adsr": {
+          "a": 6,
+          "d": 70,
+          "s": 0.4,
+          "r": 120
+        },
+        "filter": {
+          "type": "lowpass",
+          "cutoff": 5800,
+          "res": 1.2,
+          "drive": 1
+        },
+        "lfo1": {
+          "enabled": false,
+          "type": "sine",
+          "rate": 1,
+          "depth": 0
+        },
+        "lfo2": {
+          "enabled": false,
+          "type": "sine",
+          "rate": 1,
+          "depth": 0
+        },
+        "env2": {
+          "enabled": false,
+          "type": "exponential",
+          "rate": 1,
+          "depth": 0.15
+        },
+        "modMatrix": [],
+        "fx": {
+          "eq": true,
+          "compressor": true,
+          "saturation": false,
+          "chorus": false,
+          "delay": true,
+          "reverb": true
+        },
+        "playback": {
+          "mode": "On event (once)",
+          "gainDb": 0,
+          "stereo": "Stereo"
+        }
+      },
+      "gainDb": -9,
+      "pan": 0.08,
+      "muted": false,
+      "notes": [
+        {
+          "id": "lead-1",
+          "beat": 0,
+          "duration": 0.5,
+          "pitch": 69,
+          "velocity": 0.75
+        },
+        {
+          "id": "lead-2",
+          "beat": 1,
+          "duration": 0.5,
+          "pitch": 64,
+          "velocity": 0.6
+        },
+        {
+          "id": "lead-3",
+          "beat": 2,
+          "duration": 0.5,
+          "pitch": 67,
+          "velocity": 0.75
+        },
+        {
+          "id": "lead-4",
+          "beat": 3,
+          "duration": 0.5,
+          "pitch": 71,
+          "velocity": 0.65
+        },
+        {
+          "id": "lead-5",
+          "beat": 4,
+          "duration": 0.5,
+          "pitch": 69,
+          "velocity": 0.75
+        },
+        {
+          "id": "lead-6",
+          "beat": 5.5,
+          "duration": 0.5,
+          "pitch": 65,
+          "velocity": 0.6
+        },
+        {
+          "id": "lead-7",
+          "beat": 6,
+          "duration": 0.5,
+          "pitch": 64,
+          "velocity": 0.75
+        },
+        {
+          "id": "lead-8",
+          "beat": 7,
+          "duration": 0.5,
+          "pitch": 62,
+          "velocity": 0.65
+        },
+        {
+          "id": "lead-9",
+          "beat": 8,
+          "duration": 0.5,
+          "pitch": 64,
+          "velocity": 0.75
+        },
+        {
+          "id": "lead-10",
+          "beat": 9,
+          "duration": 0.5,
+          "pitch": 67,
+          "velocity": 0.6
+        },
+        {
+          "id": "lead-11",
+          "beat": 10,
+          "duration": 0.5,
+          "pitch": 71,
+          "velocity": 0.75
+        },
+        {
+          "id": "lead-12",
+          "beat": 11,
+          "duration": 0.5,
+          "pitch": 69,
+          "velocity": 0.7
+        },
+        {
+          "id": "lead-13",
+          "beat": 12,
+          "duration": 0.5,
+          "pitch": 69,
+          "velocity": 0.75
+        },
+        {
+          "id": "lead-14",
+          "beat": 13,
+          "duration": 0.5,
+          "pitch": 67,
+          "velocity": 0.65
+        },
+        {
+          "id": "lead-15",
+          "beat": 14,
+          "duration": 0.5,
+          "pitch": 64,
+          "velocity": 0.75
+        },
+        {
+          "id": "lead-16",
+          "beat": 15,
+          "duration": 0.75,
+          "pitch": 69,
+          "velocity": 0.85
+        }
+      ]
+    }
+  ],
+  "selectedLayer": "lead-demo",
+  "loopStart": 0,
+  "loopEnd": 16
+}

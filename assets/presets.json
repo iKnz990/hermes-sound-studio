@@ -1,0 +1,394 @@
+{
+  "nocturnal_dark": {
+    "palette_name": "Nocturnal Utility Dark",
+    "aesthetic_rationale": "Studio-influenced utility dark (#0a0a0f / #990001). Crisp mechanical relay noise bursts with a D Lydian hexachord (D3-F#3-A3-C#4-E4-G#4) resolution.",
+    "fundamental_hz": 146.83,
+    "css_accent_hex": "#990001",
+    "events": {
+      "onHover": {
+        "waveform": "triangle",
+        "freq_ratio": 2,
+        "pitch_bend_ratio": 1.02,
+        "mod_waveform": "sine",
+        "mod_freq_ratio": 2.414,
+        "mod_index": 45,
+        "noise_mix": 0.12,
+        "filter_type": "bandpass",
+        "cutoff_hz": 3200,
+        "q_factor": 2.4,
+        "attack_ms": 2,
+        "decay_ms": 18,
+        "gain": 0.032,
+        "pan": -0.08,
+        "chord_intervals": [
+          0
+        ]
+      },
+      "onFocus": {
+        "waveform": "sine",
+        "freq_ratio": 1.5,
+        "pitch_bend_ratio": 1,
+        "mod_waveform": "triangle",
+        "mod_freq_ratio": 2,
+        "mod_index": 35,
+        "noise_mix": 0.04,
+        "filter_type": "lowpass",
+        "cutoff_hz": 2400,
+        "q_factor": 1.8,
+        "attack_ms": 4,
+        "decay_ms": 48,
+        "gain": 0.042,
+        "pan": 0,
+        "chord_intervals": [
+          0,
+          7
+        ]
+      },
+      "onCommit": {
+        "waveform": "triangle",
+        "freq_ratio": 1,
+        "pitch_bend_ratio": 1.18,
+        "mod_waveform": "sine",
+        "mod_freq_ratio": 1.414,
+        "mod_index": 165,
+        "noise_mix": 0.22,
+        "filter_type": "lowpass",
+        "cutoff_hz": 2800,
+        "q_factor": 3.1,
+        "attack_ms": 3,
+        "decay_ms": 95,
+        "gain": 0.11,
+        "pan": 0,
+        "chord_intervals": [
+          0,
+          7,
+          14
+        ]
+      },
+      "onToggle": {
+        "waveform": "square",
+        "freq_ratio": 2.5,
+        "pitch_bend_ratio": 0.92,
+        "mod_waveform": "sine",
+        "mod_freq_ratio": 3.141,
+        "mod_index": 110,
+        "noise_mix": 0.28,
+        "filter_type": "bandpass",
+        "cutoff_hz": 2200,
+        "q_factor": 4,
+        "attack_ms": 1.5,
+        "decay_ms": 32,
+        "gain": 0.065,
+        "pan": 0.1,
+        "chord_intervals": [
+          0
+        ]
+      },
+      "onError": {
+        "waveform": "sawtooth",
+        "freq_ratio": 0.89,
+        "pitch_bend_ratio": 0.72,
+        "mod_waveform": "sawtooth",
+        "mod_freq_ratio": 1.33,
+        "mod_index": 210,
+        "noise_mix": 0.15,
+        "filter_type": "lowpass",
+        "cutoff_hz": 780,
+        "q_factor": 4.5,
+        "attack_ms": 5,
+        "decay_ms": 260,
+        "gain": 0.12,
+        "pan": 0,
+        "chord_intervals": [
+          0,
+          6
+        ]
+      },
+      "onBackgroundTaskComplete": {
+        "waveform": "triangle",
+        "freq_ratio": 1,
+        "pitch_bend_ratio": 1,
+        "mod_waveform": "sine",
+        "mod_freq_ratio": 2,
+        "mod_index": 55,
+        "noise_mix": 0.03,
+        "filter_type": "lowpass",
+        "cutoff_hz": 2600,
+        "q_factor": 1.4,
+        "attack_ms": 22,
+        "decay_ms": 1150,
+        "gain": 0.16,
+        "pan": 0,
+        "chord_intervals": [
+          0,
+          4,
+          7,
+          11,
+          14,
+          18
+        ]
+      }
+    }
+  },
+  "post_bop_chamber": {
+    "palette_name": "Post-Bop Chamber Studio",
+    "aesthetic_rationale": "220Hz A3 fundamental with warm FM woodwind/nyckelharpa harmonic ratios and 126 BPM 3-over-2 polyrhythmic sensibility.",
+    "fundamental_hz": 220,
+    "css_accent_hex": "#990001",
+    "events": {
+      "onHover": {
+        "waveform": "sine",
+        "freq_ratio": 1.5,
+        "pitch_bend_ratio": 1.01,
+        "mod_waveform": "triangle",
+        "mod_freq_ratio": 3,
+        "mod_index": 30,
+        "noise_mix": 0.06,
+        "filter_type": "lowpass",
+        "cutoff_hz": 2900,
+        "q_factor": 1.6,
+        "attack_ms": 3,
+        "decay_ms": 20,
+        "gain": 0.03,
+        "pan": -0.05,
+        "chord_intervals": [
+          0
+        ]
+      },
+      "onFocus": {
+        "waveform": "triangle",
+        "freq_ratio": 1.25,
+        "pitch_bend_ratio": 1,
+        "mod_waveform": "sine",
+        "mod_freq_ratio": 2,
+        "mod_index": 48,
+        "noise_mix": 0.04,
+        "filter_type": "bandpass",
+        "cutoff_hz": 1950,
+        "q_factor": 2,
+        "attack_ms": 6,
+        "decay_ms": 55,
+        "gain": 0.045,
+        "pan": 0.05,
+        "chord_intervals": [
+          0,
+          4
+        ]
+      },
+      "onCommit": {
+        "waveform": "sawtooth",
+        "freq_ratio": 1,
+        "pitch_bend_ratio": 1.12,
+        "mod_waveform": "sine",
+        "mod_freq_ratio": 2,
+        "mod_index": 120,
+        "noise_mix": 0.14,
+        "filter_type": "lowpass",
+        "cutoff_hz": 2100,
+        "q_factor": 2.6,
+        "attack_ms": 4,
+        "decay_ms": 110,
+        "gain": 0.1,
+        "pan": 0,
+        "chord_intervals": [
+          0,
+          7,
+          11
+        ]
+      },
+      "onToggle": {
+        "waveform": "triangle",
+        "freq_ratio": 2,
+        "pitch_bend_ratio": 0.96,
+        "mod_waveform": "sine",
+        "mod_freq_ratio": 1.5,
+        "mod_index": 85,
+        "noise_mix": 0.18,
+        "filter_type": "bandpass",
+        "cutoff_hz": 2500,
+        "q_factor": 3,
+        "attack_ms": 2,
+        "decay_ms": 35,
+        "gain": 0.06,
+        "pan": 0.08,
+        "chord_intervals": [
+          0
+        ]
+      },
+      "onError": {
+        "waveform": "sawtooth",
+        "freq_ratio": 0.75,
+        "pitch_bend_ratio": 0.82,
+        "mod_waveform": "triangle",
+        "mod_freq_ratio": 1.414,
+        "mod_index": 180,
+        "noise_mix": 0.1,
+        "filter_type": "lowpass",
+        "cutoff_hz": 820,
+        "q_factor": 3.8,
+        "attack_ms": 6,
+        "decay_ms": 240,
+        "gain": 0.11,
+        "pan": 0,
+        "chord_intervals": [
+          0,
+          1,
+          6
+        ]
+      },
+      "onBackgroundTaskComplete": {
+        "waveform": "sawtooth",
+        "freq_ratio": 0.6674,
+        "pitch_bend_ratio": 1,
+        "mod_waveform": "sine",
+        "mod_freq_ratio": 2,
+        "mod_index": 75,
+        "noise_mix": 0.04,
+        "filter_type": "lowpass",
+        "cutoff_hz": 1950,
+        "q_factor": 1.9,
+        "attack_ms": 26,
+        "decay_ms": 1250,
+        "gain": 0.15,
+        "pan": 0,
+        "chord_intervals": [
+          0,
+          4,
+          7,
+          11,
+          14,
+          18
+        ]
+      }
+    }
+  },
+  "brutalist_mono": {
+    "palette_name": "Brutalist Terminal Mono",
+    "aesthetic_rationale": "110Hz A2 sub-fundamental, high-Q bandpass relay transients, metallic irrational FM ratios, zero-fluff industrial precision.",
+    "fundamental_hz": 110,
+    "css_accent_hex": "#990001",
+    "events": {
+      "onHover": {
+        "waveform": "square",
+        "freq_ratio": 3,
+        "pitch_bend_ratio": 1,
+        "mod_waveform": "square",
+        "mod_freq_ratio": 2.718,
+        "mod_index": 95,
+        "noise_mix": 0.25,
+        "filter_type": "highpass",
+        "cutoff_hz": 2800,
+        "q_factor": 4.2,
+        "attack_ms": 1,
+        "decay_ms": 14,
+        "gain": 0.028,
+        "pan": 0,
+        "chord_intervals": [
+          0
+        ]
+      },
+      "onFocus": {
+        "waveform": "triangle",
+        "freq_ratio": 2,
+        "pitch_bend_ratio": 1.05,
+        "mod_waveform": "sine",
+        "mod_freq_ratio": 1.414,
+        "mod_index": 80,
+        "noise_mix": 0.1,
+        "filter_type": "bandpass",
+        "cutoff_hz": 1800,
+        "q_factor": 3.2,
+        "attack_ms": 2,
+        "decay_ms": 40,
+        "gain": 0.04,
+        "pan": 0,
+        "chord_intervals": [
+          0
+        ]
+      },
+      "onCommit": {
+        "waveform": "square",
+        "freq_ratio": 1.5,
+        "pitch_bend_ratio": 1.25,
+        "mod_waveform": "sawtooth",
+        "mod_freq_ratio": 1.732,
+        "mod_index": 240,
+        "noise_mix": 0.3,
+        "filter_type": "bandpass",
+        "cutoff_hz": 1600,
+        "q_factor": 3.5,
+        "attack_ms": 2,
+        "decay_ms": 80,
+        "gain": 0.11,
+        "pan": 0,
+        "chord_intervals": [
+          0,
+          7
+        ]
+      },
+      "onToggle": {
+        "waveform": "square",
+        "freq_ratio": 3.5,
+        "pitch_bend_ratio": 0.85,
+        "mod_waveform": "sine",
+        "mod_freq_ratio": 2.414,
+        "mod_index": 150,
+        "noise_mix": 0.35,
+        "filter_type": "bandpass",
+        "cutoff_hz": 3100,
+        "q_factor": 5,
+        "attack_ms": 1,
+        "decay_ms": 24,
+        "gain": 0.06,
+        "pan": 0,
+        "chord_intervals": [
+          0
+        ]
+      },
+      "onError": {
+        "waveform": "sawtooth",
+        "freq_ratio": 1,
+        "pitch_bend_ratio": 0.62,
+        "mod_waveform": "square",
+        "mod_freq_ratio": 1.19,
+        "mod_index": 320,
+        "noise_mix": 0.2,
+        "filter_type": "lowpass",
+        "cutoff_hz": 640,
+        "q_factor": 5.5,
+        "attack_ms": 3,
+        "decay_ms": 310,
+        "gain": 0.13,
+        "pan": 0,
+        "chord_intervals": [
+          0,
+          1
+        ]
+      },
+      "onBackgroundTaskComplete": {
+        "waveform": "triangle",
+        "freq_ratio": 1.3348,
+        "pitch_bend_ratio": 1,
+        "mod_waveform": "sine",
+        "mod_freq_ratio": 3,
+        "mod_index": 90,
+        "noise_mix": 0.08,
+        "filter_type": "lowpass",
+        "cutoff_hz": 2200,
+        "q_factor": 2.2,
+        "attack_ms": 12,
+        "decay_ms": 950,
+        "gain": 0.15,
+        "pan": 0,
+        "chord_intervals": [
+          0,
+          4,
+          7,
+          11,
+          14,
+          18
+        ]
+      }
+    }
+  }
+}

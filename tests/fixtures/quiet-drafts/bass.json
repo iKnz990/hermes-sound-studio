@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "SoundPatch/v1",
+  "seed": 3786027835,
+  "name": "Iron Fang 808",
+  "style": "nocturnal",
+  "character": "Hard-edged trap bass with deep sine weight and a dark minor melodic voicing",
+  "duration": 0.68,
+  "intensity": 42,
+  "baseFreq": 55,
+  "chords": [
+    0,
+    3,
+    7
+  ],
+  "osc1": {
+    "enabled": true,
+    "type": "sine",
+    "vol": 0.3,
+    "tune": 0,
+    "detune": 0,
+    "pan": 0,
+    "spread": 0
+  },
+  "osc2": {
+    "enabled": true,
+    "type": "sawtooth",
+    "vol": 0.12,
+    "tune": 0,
+    "detune": 0,
+    "pan": 0,
+    "spread": 0
+  },
+  "osc3": {
+    "enabled": true,
+    "type": "triangle",
+    "vol": 0.08,
+    "tune": 12,
+    "detune": 0,
+    "pan": 0,
+    "spread": 0
+  },
+  "noise": 0.005,
+  "adsr": {
+    "a": 5,
+    "d": 190,
+    "s": 0.38,
+    "r": 230
+  },
+  "filter": {
+    "type": "lowpass",
+    "cutoff": 1350,
+    "res": 0.7,
+    "drive": 3.2
+  },
+  "lfo1": {
+    "enabled": true,
+    "type": "triangle",
+    "rate": 4,
+    "depth": 0.12
+  },
+  "lfo2": {
+    "enabled": false,
+    "type": "sine",
+    "rate": 0.5,
+    "depth": 0
+  },
+  "env2": {
+    "enabled": false,
+    "type": "exponential",
+    "rate": 1,
+    "depth": 0.15
+  },
+  "modMatrix": [
+    {
+      "source": "Env 1 (ADSR)",
+      "amount": 0.45,
+      "dest": "Filter Cutoff"
+    },
+    {
+      "source": "LFO 1",
+      "amount": 0.12,
+      "dest": "Filter Cutoff"
+    },
+    {
+      "source": "Velocity",
+      "amount": 0.16,
+      "dest": "Filter Cutoff"
+    }
+  ],
+  "fx": {
+    "eq": true,
+    "compressor": true,
+    "saturation": true,
+    "chorus": false,
+    "delay": false,
+    "reverb": false
+  },
+  "fxParameters": {
+    "eq": {
+      "frequency": 280,
+      "gainDb": -2.5,
+      "q": 0.85
+    },
+    "saturation": {
+      "drive": 3.6
+    },
+    "compressor": {
+      "thresholdDb": -18,
+      "ratio": 3,
+      "attack": 0.012,
+      "release": 0.11,
+      "kneeDb": 6
+    },
+    "chorus": {
+      "rate": 0.6,
+      "depth": 0.002,
+      "mix": 0
+    },
+    "delay": {
+      "time": 0.125,
+      "feedback": 0.12,
+      "mix": 0
+    },
+    "reverb": {
+      "decay": 0.2,
+      "mix": 0
+    }
+  },
+  "fxOrder": [
+    "eq",
+    "saturation",
+    "compressor",
+    "chorus",
+    "delay",
+    "reverb"
+  ],
+  "playback": {
+    "mode": "On event (once)",
+    "gainDb": -12,
+    "stereo": "Mono"
+  }
+}

@@ -1,0 +1,19 @@
+# Verification
+
+Run `npm run build` for strict UI/engine type checking and a reproducible bundle build. Run `npm test` for the current JavaScript and Python regression suite. `npm run test:browser` exercises the exact compiled bundle in isolated Chromium with physically muted output.
+
+Browser coverage includes control editing, four viewport sizes, note velocity, pan, loop bounds, export, reload, audio consent, playback position and real meters. Desktop-target checks compare played buffers against all six assigned patches with a maximum absolute sample tolerance of 1e-5, accounting for Chromium offline DSP drift.
+
+Sound Draft browser checks use a routed SDK fixture with isolated hidden conversations and recorded prompts; they never call an external model. They cover staying in Studio, progress, cancellation, completion after navigation, source-edit protection, feature-aware Fine tune tabs, immediate effect toggles, explicit audition/Stop/acceptance and invalid replies. Controller tests cover duplicate activation, exact route/socket ownership, cancellation during create, malformed replies, stale profiles, timeout without replay, SDK-supported create parameters, recovery of a lost create reply without resubmission, canonical admission cancellation and subscription detach, and legacy runtime close.
+
+Playback geometry is compared before, during and after audition at 1440, 900 and 600 pixels. The timeline reserves its transport slot while idle; focusing Audition no longer expands helper copy or inserts an analysis row.
+
+Audio-session browser checks leave and remount the production route, switch tasks and host sessions, launch Sound Draft, audition a returned patch, and mute each transport. They verify retained readiness/mute without autoplay or extra contexts, stopped playback on departure, closed contexts on plugin unload, and fresh consent after reload. Draft preview cleanup is checked against a real render with effect tails longer than six seconds.
+
+Two quiet JSON regression fixtures are rendered through actual Web Audio. Browser checks verify the quiet warning, direct audition from audio-off, draft-only balancing, explicit acceptance, preserved notes/envelopes/effects and a measured peak around −18 dBFS. A silent fixture verifies actionable feedback without automatic amplification. Prompt calibration reduces compounded attenuation; model output still needs review.
+
+The portable browser harness simulates the non-dialog Hermes SDK and Dialog host. It verifies the production plugin and actual Web Audio, not a running Hermes backend, external model provider, real speakers, OS volume or cross-browser audio equivalence. A native Windows run also completed one real background request using the configured gpt-6.1-sol model, displayed its validated Fine tune controls without navigation, and left the original assigned sound untouched. Native model verification is separate from the automated fixture and does not establish speaker/OS volume acceptance.
+
+The release test list is explicit in `scripts/test-files.json`. It contains maintained domain, audio, persistence and generation regressions. Historical installation scripts, stale UI snapshots, delivery receipts and developer scratch fixtures are excluded from the release tree. No blanket claim that every historical development test passes is made.
+
+Catalog admission is a separate check: `hermes plugins validate . --install-deps --json`. A passing local run is evidence for that tree and environment, not catalog acceptance. The catalog PR must pin the public repository's full 40-character commit SHA.

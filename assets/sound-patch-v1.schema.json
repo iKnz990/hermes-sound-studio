@@ -1,0 +1,570 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermes.local/schemas/sound-patch-v1.schema.json",
+  "title": "SoundPatch/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "seed",
+    "name",
+    "style",
+    "character",
+    "duration",
+    "intensity",
+    "baseFreq",
+    "chords",
+    "osc1",
+    "osc2",
+    "osc3",
+    "noise",
+    "adsr",
+    "filter",
+    "lfo1",
+    "lfo2",
+    "env2",
+    "modMatrix",
+    "fx",
+    "playback"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "SoundPatch/v1"
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^(?=.*\\S)[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "style": {
+      "enum": [
+        "soft",
+        "crisp",
+        "warm",
+        "mechanical",
+        "nocturnal"
+      ]
+    },
+    "character": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^(?=.*\\S)[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "duration": {
+      "type": "number",
+      "minimum": 0.02,
+      "maximum": 2.5
+    },
+    "intensity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "baseFreq": {
+      "type": "number",
+      "minimum": 40,
+      "maximum": 4000
+    },
+    "chords": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {
+        "type": "number",
+        "minimum": -24,
+        "maximum": 24
+      }
+    },
+    "osc1": {
+      "$ref": "#/$defs/oscillator"
+    },
+    "osc2": {
+      "$ref": "#/$defs/oscillator"
+    },
+    "osc3": {
+      "$ref": "#/$defs/oscillator"
+    },
+    "noise": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "adsr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "d",
+        "s",
+        "r"
+      ],
+      "properties": {
+        "a": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "d": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1500
+        },
+        "s": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "r": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2000
+        }
+      }
+    },
+    "filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "cutoff",
+        "res",
+        "drive"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "lowpass",
+            "highpass",
+            "bandpass",
+            "notch"
+          ]
+        },
+        "cutoff": {
+          "type": "number",
+          "minimum": 40,
+          "maximum": 16000
+        },
+        "res": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 8
+        },
+        "drive": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        }
+      }
+    },
+    "lfo1": {
+      "$ref": "#/$defs/lfo"
+    },
+    "lfo2": {
+      "$ref": "#/$defs/lfo"
+    },
+    "env2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "type",
+        "rate",
+        "depth"
+      ],
+      "properties": {
+        "enabled": {
+          "const": false
+        },
+        "type": {
+          "const": "exponential"
+        },
+        "rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "depth": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "modMatrix": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "amount",
+          "dest"
+        ],
+        "properties": {
+          "source": {
+            "enum": [
+              "LFO 1",
+              "LFO 2",
+              "Env 1 (ADSR)",
+              "Velocity"
+            ]
+          },
+          "amount": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          },
+          "dest": {
+            "enum": [
+              "Filter Cutoff",
+              "Osc 1 Level",
+              "Pan",
+              "Filter Resonance",
+              "Osc 2 Pitch"
+            ]
+          }
+        }
+      }
+    },
+    "fx": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eq",
+        "compressor",
+        "saturation",
+        "chorus",
+        "delay",
+        "reverb"
+      ],
+      "properties": {
+        "eq": {
+          "type": "boolean"
+        },
+        "compressor": {
+          "type": "boolean"
+        },
+        "saturation": {
+          "type": "boolean"
+        },
+        "chorus": {
+          "type": "boolean"
+        },
+        "delay": {
+          "type": "boolean"
+        },
+        "reverb": {
+          "type": "boolean"
+        }
+      }
+    },
+    "fxParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eq",
+        "saturation",
+        "compressor",
+        "chorus",
+        "delay",
+        "reverb"
+      ],
+      "properties": {
+        "eq": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "frequency",
+            "gainDb",
+            "q"
+          ],
+          "properties": {
+            "frequency": {
+              "type": "number",
+              "minimum": 40,
+              "maximum": 16000
+            },
+            "gainDb": {
+              "type": "number",
+              "minimum": -12,
+              "maximum": 12
+            },
+            "q": {
+              "type": "number",
+              "minimum": 0.1,
+              "maximum": 8
+            }
+          }
+        },
+        "saturation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "drive"
+          ],
+          "properties": {
+            "drive": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10
+            }
+          }
+        },
+        "compressor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "thresholdDb",
+            "ratio",
+            "attack",
+            "release",
+            "kneeDb"
+          ],
+          "properties": {
+            "thresholdDb": {
+              "type": "number",
+              "minimum": -60,
+              "maximum": 0
+            },
+            "ratio": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "attack": {
+              "type": "number",
+              "minimum": 0.001,
+              "maximum": 1
+            },
+            "release": {
+              "type": "number",
+              "minimum": 0.01,
+              "maximum": 2
+            },
+            "kneeDb": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 40
+            }
+          }
+        },
+        "chorus": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rate",
+            "depth",
+            "mix"
+          ],
+          "properties": {
+            "rate": {
+              "type": "number",
+              "minimum": 0.1,
+              "maximum": 5
+            },
+            "depth": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 0.01
+            },
+            "mix": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "delay": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "time",
+            "feedback",
+            "mix"
+          ],
+          "properties": {
+            "time": {
+              "type": "number",
+              "minimum": 0.01,
+              "maximum": 1
+            },
+            "feedback": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 0.7
+            },
+            "mix": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "reverb": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decay",
+            "mix"
+          ],
+          "properties": {
+            "decay": {
+              "type": "number",
+              "minimum": 0.05,
+              "maximum": 2
+            },
+            "mix": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        }
+      }
+    },
+    "fxOrder": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "eq",
+          "saturation",
+          "compressor",
+          "chorus",
+          "delay",
+          "reverb"
+        ]
+      }
+    },
+    "playback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "gainDb",
+        "stereo"
+      ],
+      "properties": {
+        "mode": {
+          "const": "On event (once)"
+        },
+        "gainDb": {
+          "type": "number",
+          "minimum": -24,
+          "maximum": 6
+        },
+        "stereo": {
+          "enum": [
+            "Mono",
+            "Stereo"
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "oscillator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "type",
+        "vol",
+        "tune"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "type": {
+          "enum": [
+            "sine",
+            "triangle",
+            "square",
+            "sawtooth"
+          ]
+        },
+        "vol": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "tune": {
+          "type": "number",
+          "minimum": -24,
+          "maximum": 24
+        },
+        "detune": {
+          "type": "number",
+          "minimum": -100,
+          "maximum": 100
+        },
+        "pan": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1
+        },
+        "spread": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 50
+        }
+      }
+    },
+    "lfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "type",
+        "rate",
+        "depth"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "type": {
+          "enum": [
+            "sine",
+            "triangle",
+            "square"
+          ]
+        },
+        "rate": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 20
+        },
+        "depth": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  },
+  "x-dspConstraints": {
+    "adsrBodySeconds": "(adsr.a + adsr.d + adsr.r) / 1000 <= duration + 0.000001",
+    "frequencyHz": "for each chords[] and each enabled oscillator, baseFreq * 2 ** ((chord + oscillator.tune + 2 + ((oscillator.detune ?? 0) + (oscillator.spread ?? 0)) / 100) / 12) <= 0.42 * 44100",
+    "enabledOscillatorsOnly": true,
+    "lowestSupportedSampleRate": 44100,
+    "frequencyHeadroomSemitones": 2,
+    "maxModMatrixRows": 12,
+    "maxChords": 6,
+    "maxRenderSeconds": "duration + (chords.length - 1) * 0.024 + effectTailSeconds",
+    "effectTailSeconds": "Without fxParameters preserve historical tails: ordered sum 0.035 + chorus 0.07 + delay 1.16 + reverb 0.68; parallel delay 1.16 else reverb 0.68 else chorus 0.07 else 0.035. With fxParameters: delayTail=max(1.16, delay.time * (delay.feedback == 0 ? 1 : ceil(log(0.0001)/log(delay.feedback))) + 0.035); reverbTail=max(0.68, reverb.decay + 0.06); ordered 0.035 plus enabled chorus 0.07, delayTail, reverbTail; parallel max(0.035, enabled chorus 0.07, delayTail, reverbTail).",
+    "numericFieldsFinite": true
+  },
+  "$comment": "Cross-field DSP constraints are implemented by validateSoundPatch and described in x-dspConstraints. The 2-semitone frequency headroom is part of the exact runtime predicate. Optional fxParameters must be complete when present; absent values use historical DSP defaults without adding the field. Hz/dB/seconds as named; mix is additive wet-send gain and leaves the dry path intact. Delay tails are bounded at the -80dB feedback-amplitude floor."
+}

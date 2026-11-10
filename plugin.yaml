@@ -1,0 +1,19 @@
+name: hermes-sonic-ui
+version: 0.5.0
+requires_hermes: ">=0.23.0"
+description: Design, assign and compose procedural sounds inside Hermes Desktop.
+license: MIT
+provides_tools:
+  - synthesize_ui_soundscape
+  - audit_ui_silence
+  - inject_sonic_hooks
+  - sonic_create_patch
+config_schema:
+  default_preset:
+    type: str
+    default: nocturnal_dark
+    description: Default offline six-voice preset.
+  enable_css_vars:
+    type: bool
+    default: true
+    description: Enable scoped optional CSS variables in generated audio runtime.

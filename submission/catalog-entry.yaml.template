@@ -1,0 +1,25 @@
+name: hermes-sonic-ui
+title: Hermes Sound Studio
+repo: https://github.com/REPLACE_OWNER/REPLACE_REPOSITORY
+sha: REPLACE_WITH_FULL_40_CHARACTER_COMMIT_SHA
+description: Design procedural sounds, assign them to Hermes Desktop interactions, compose layered loops, and export WAV, JSON or TypeScript. Local synthesis; optional configured-model drafts.
+maintainer: REPLACE_WITH_GITHUB_HANDLE
+tier: community
+category: desktop
+version: "0.5.0"
+requires_hermes: ">=0.23.0"
+readme: true
+platforms: []
+known_issues:
+  - Windows and Chromium are the tested desktop environment; other operating systems have not been verified.
+  - The separate native draft tool requires the native bridge and a configured default-profile model.
+capabilities:
+  provides_tools:
+    - synthesize_ui_soundscape
+    - audit_ui_silence
+    - inject_sonic_hooks
+    - sonic_create_patch
+  provides_hooks: []
+  provides_middleware: []
+  requires_env: []
+

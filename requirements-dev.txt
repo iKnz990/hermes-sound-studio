@@ -1,0 +1,2 @@
+# Browser verification only; not a plugin runtime dependency.
+playwright>=1.50,<2

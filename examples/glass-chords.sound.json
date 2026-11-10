@@ -1,0 +1,83 @@
+{
+  "schemaVersion": "SoundPatch/v1",
+  "seed": 5702,
+  "name": "Glass Chords",
+  "style": "soft",
+  "character": "Soft & Smooth",
+  "duration": 0.7,
+  "intensity": 70,
+  "baseFreq": 220,
+  "chords": [
+    0,
+    3,
+    7
+  ],
+  "osc1": {
+    "enabled": true,
+    "type": "sine",
+    "vol": 0.45,
+    "tune": 0,
+    "detune": -4,
+    "pan": -0.25
+  },
+  "osc2": {
+    "enabled": true,
+    "type": "triangle",
+    "vol": 0.2,
+    "tune": 12,
+    "detune": 4,
+    "pan": 0.25,
+    "spread": 6
+  },
+  "osc3": {
+    "enabled": false,
+    "type": "square",
+    "vol": 0,
+    "tune": 0
+  },
+  "noise": 0,
+  "adsr": {
+    "a": 30,
+    "d": 120,
+    "s": 0.55,
+    "r": 400
+  },
+  "filter": {
+    "type": "lowpass",
+    "cutoff": 3500,
+    "res": 0.8,
+    "drive": 0
+  },
+  "lfo1": {
+    "enabled": false,
+    "type": "sine",
+    "rate": 1,
+    "depth": 0
+  },
+  "lfo2": {
+    "enabled": false,
+    "type": "sine",
+    "rate": 1,
+    "depth": 0
+  },
+  "env2": {
+    "enabled": false,
+    "type": "exponential",
+    "rate": 1,
+    "depth": 0.15
+  },
+  "modMatrix": [],
+  "fx": {
+    "eq": true,
+    "compressor": true,
+    "saturation": false,
+    "chorus": false,
+    "delay": true,
+    "reverb": true
+  },
+  "playback": {
+    "mode": "On event (once)",
+    "gainDb": 0,
+    "stereo": "Stereo"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "javascript": [
+    "tests/audio-engine.test.mjs",
+    "tests/compose-core-audio.test.mjs",
+    "tests/compose-core-store.test.mjs",
+    "tests/compose-export-controller.test.mjs",
+    "tests/compose-export.test.mjs",
+    "tests/compose-fx-parameters.test.mjs",
+    "tests/compose-grid-interactions.test.mjs",
+    "tests/compose-live-audio.test.mjs",
+    "tests/patch-parity.test.mjs",
+    "tests/studio-confirmation.test.mjs",
+    "tests/studio-curve-gesture.test.mjs",
+    "tests/studio-engine-v4.test.mjs",
+    "tests/studio-engine.test.mjs",
+    "tests/studio-generation-races.test.mjs",
+    "tests/studio-generation.test.mjs",
+    "tests/studio-playback-position.test.mjs",
+    "tests/studio-repository.test.mjs",
+    "tests/studio-sonic-export.test.mjs",
+    "tests/studio-spectrogram.test.mjs",
+    "tests/studio-workspace-upgrade.test.mjs",
+    "tests/studio-desktop-target.test.mjs",
+    "tests/studio-draft-session.test.mjs",
+    "tests/studio-background-draft.test.mjs"
+  ],
+  "python": [
+    "test_backend.py",
+    "test_compose_fx_parameters.py",
+    "test_studio_backend.py",
+    "test_studio_schema_parity.py",
+    "test_workspace_upgrade.py",
+    "test_registration.py"
+  ]
+}

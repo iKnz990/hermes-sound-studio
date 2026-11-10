@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "SoundPatch/v1",
+  "seed": 3786027835,
+  "name": "Warm Completion Chime",
+  "style": "warm",
+  "character": "A rounded midrange chime with a gentle ascending major voicing and a short, soft finish",
+  "duration": 0.42,
+  "intensity": 38,
+  "baseFreq": 392,
+  "chords": [
+    0,
+    4,
+    7
+  ],
+  "osc1": {
+    "enabled": true,
+    "type": "sine",
+    "vol": 0.32,
+    "tune": 0
+  },
+  "osc2": {
+    "enabled": true,
+    "type": "triangle",
+    "vol": 0.1,
+    "tune": 0
+  },
+  "osc3": {
+    "enabled": false,
+    "type": "sine",
+    "vol": 0,
+    "tune": 12
+  },
+  "noise": 0,
+  "adsr": {
+    "a": 6,
+    "d": 160,
+    "s": 0.12,
+    "r": 240
+  },
+  "filter": {
+    "type": "lowpass",
+    "cutoff": 2400,
+    "res": 0.5,
+    "drive": 0
+  },
+  "lfo1": {
+    "enabled": false,
+    "type": "sine",
+    "rate": 2,
+    "depth": 0
+  },
+  "lfo2": {
+    "enabled": false,
+    "type": "triangle",
+    "rate": 0.5,
+    "depth": 0
+  },
+  "env2": {
+    "enabled": false,
+    "type": "exponential",
+    "rate": 1,
+    "depth": 0.15
+  },
+  "modMatrix": [],
+  "fx": {
+    "eq": false,
+    "compressor": false,
+    "saturation": false,
+    "chorus": false,
+    "delay": false,
+    "reverb": true
+  },
+  "fxParameters": {
+    "eq": {
+      "frequency": 1200,
+      "gainDb": 0,
+      "q": 0.7
+    },
+    "saturation": {
+      "drive": 0
+    },
+    "compressor": {
+      "thresholdDb": -18,
+      "ratio": 2,
+      "attack": 0.01,
+      "release": 0.12,
+      "kneeDb": 6
+    },
+    "chorus": {
+      "rate": 0.6,
+      "depth": 0.002,
+      "mix": 0
+    },
+    "delay": {
+      "time": 0.12,
+      "feedback": 0,
+      "mix": 0
+    },
+    "reverb": {
+      "decay": 0.22,
+      "mix": 0.065
+    }
+  },
+  "playback": {
+    "mode": "On event (once)",
+    "gainDb": -9,
+    "stereo": "Stereo"
+  }
+}

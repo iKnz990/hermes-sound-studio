@@ -1,0 +1,6 @@
+{
+  "name": "hermes-sonic-ui",
+  "title": "Sound Studio",
+  "description": "Optional validated sound drafts using Hermes' configured model.",
+  "api": "plugin_api.py"
+}
