@@ -34,6 +34,19 @@ function rig(renderPatch=async()=>pcm()){
 function riff(wav){const view=new DataView(wav.buffer,wav.byteOffset,wav.byteLength),text=(o,n)=>new TextDecoder().decode(wav.subarray(o,o+n));return {view,text};}
 function freeze(value){if(value&&typeof value==='object'){Object.freeze(value);for(const child of Object.values(value))freeze(child);}return value;}
 
+test('32-bar export at the slowest tempo includes late onsets and supports a late subloop',async()=>{
+ for(const meter of [3,4]){
+  const c=fixture();c.bars=32;c.meter=meter;c.tempo=60;
+  c.layers[0].notes=[0,32*meter-.5].map((beat,i)=>({...c.layers[0].notes[0],id:`late-${i}`,beat}));
+  const r=rig(),full=await render(c,{},r.deps);
+  assert.equal(full.loopSeconds,32*meter);assert.equal(full.noteCount,2);
+  assert.deepEqual(r.contexts[0].sources.map(s=>s.at),[0,32*meter-.5]);
+  const last=rig(),result=await render({...c,loopStart:31*meter,loopEnd:32*meter},{},last.deps);
+  assert.equal(result.loopSeconds,meter);assert.equal(result.noteCount,1);
+  assert.equal(last.contexts[0].sources[0].at,meter-.5);
+ }
+});
+
 test('one active loop starts at beat zero with exact bar/meter/tempo timing, never wrapped onsets',async()=>{
  const c=fixture();c.tempo=150;c.meter=3;c.bars=2;c.layers[0].notes=[0,1.5,5.75,6].map((beat,i)=>({...c.layers[0].notes[0],id:`n${i}`,beat}));
  const r=rig(),progress=[];const result=await render(c,{onProgress:(done,total)=>progress.push([done,total])},r.deps);

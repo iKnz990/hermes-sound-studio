@@ -3,7 +3,7 @@ from pathlib import Path
 import argparse,hashlib,json,zipfile
 ROOT=Path(__file__).resolve().parents[1]
 RUNTIME=['__init__.py','compiler.py','injector.py','safety.py','synth_schema.py','studio_backend.py','studio_registration.py','plugin.yaml','README.md','INSTALL.md','CHANGELOG.md','LICENSE','THIRD_PARTY_NOTICES.md','desktop','dist','assets','dashboard','licenses','skills','docs','examples']
-SOURCE=RUNTIME+['desktop-src','injector-src','tests','scripts','.github','package.json','package-lock.json','requirements-dev.txt','.gitignore']
+SOURCE=RUNTIME+['desktop-src','injector-src','tests','scripts','.github','package.json','package-lock.json','requirements-dev.txt','.gitignore','.gitattributes']
 EXCLUDE={'node_modules','__pycache__','.git','evidence','proof','delivery','.pytest_cache'}
 RETIRED={'desktop-src/telemetry.ts','desktop-src/legacy-style.ts'}
 def sha(data):return hashlib.sha256(data).hexdigest()

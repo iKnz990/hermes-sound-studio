@@ -7,7 +7,9 @@ export type Composition = {
  layers:ComposeLayer[];selectedLayer:string;loopStart?:number;loopEnd?:number;
 };
 export const MAX_COMPOSE_LAYERS=8;
-export const MAX_COMPOSE_NOTES=256;
+export const MAX_COMPOSE_BARS=32;
+export const MAX_COMPOSE_BEATS=MAX_COMPOSE_BARS*4;
+export const MAX_COMPOSE_NOTES=2048;
 
 function shape(value:unknown,keys:readonly string[],what:string):asserts value is Record<string,unknown>{
  if(!value||typeof value!=='object'||Array.isArray(value)||Object.getPrototypeOf(value)!==Object.prototype||Reflect.ownKeys(value).length!==keys.length||keys.some(key=>!Object.hasOwn(value,key)))throw new TypeError(`${what}: invalid keys`);
@@ -24,12 +26,12 @@ function identity(value:unknown,seen:Set<string>,what:string):string{
  const id=text(value,what,128);if(seen.has(id))throw new TypeError(`${what}: duplicate identity`);seen.add(id);return id;
 }
 function notes(value:unknown,seen:Set<string>):ComposeNote[]{
- if(!Array.isArray(value)||value.length>MAX_COMPOSE_NOTES)throw new RangeError('notes: at most 256 notes');
+ if(!Array.isArray(value)||value.length>MAX_COMPOSE_NOTES)throw new RangeError(`notes: at most ${MAX_COMPOSE_NOTES} notes`);
  const result:ComposeNote[]=[];
  for(const note of value){
   shape(note,['id','beat','duration','pitch','velocity'],'note');
-  const id=identity(note.id,seen,'note id'),beat=number(note.beat,0,16,'beat'),duration=number(note.duration,.25,4,'duration');
-  if(beat+duration>16)throw new RangeError('note end: must not exceed beat 16');
+  const id=identity(note.id,seen,'note id'),beat=number(note.beat,0,MAX_COMPOSE_BEATS,'beat'),duration=number(note.duration,.25,4,'duration');
+  if(beat+duration>MAX_COMPOSE_BEATS)throw new RangeError(`note end: must not exceed beat ${MAX_COMPOSE_BEATS}`);
   result.push({id,beat,duration,pitch:number(note.pitch,28,84,'pitch',true),velocity:number(note.velocity,.1,1,'velocity')});
  }
  return result;
@@ -50,9 +52,9 @@ export function validateComposition(value:unknown):Composition{
  if(!Array.isArray(value.layers)||value.layers.length<1||value.layers.length>MAX_COMPOSE_LAYERS)throw new RangeError('layers: expected 1–8 layers');
  const seen=new Set<string>(),id=identity(value.id,seen,'composition id'),layers:ComposeLayer[]=[];
  for(const item of value.layers)layers.push(layer(item,seen));
- if(layers.reduce((count,item)=>count+item.notes.length,0)>MAX_COMPOSE_NOTES)throw new RangeError('composition: at most 256 notes total');
+ if(layers.reduce((count,item)=>count+item.notes.length,0)>MAX_COMPOSE_NOTES)throw new RangeError(`composition: at most ${MAX_COMPOSE_NOTES} notes total`);
  if(typeof value.selectedLayer!=='string'||!layers.some(item=>item.id===value.selectedLayer))throw new TypeError('selectedLayer: unknown layer');
- const bars=number(value.bars,1,4,'bars',true);
+ const bars=number(value.bars,1,MAX_COMPOSE_BARS,'bars',true);
  const loop=windowed?{loopStart:number(value.loopStart,0,bars*value.meter-.5,'loop start'),loopEnd:number(value.loopEnd,.5,bars*value.meter,'loop end')}:{};
  if(windowed&&loop.loopEnd!-loop.loopStart!<.5)throw new RangeError('Loop must contain at least half a beat');
  return {schemaVersion:'Composition/v1',id,name:text(value.name,'composition name'),tempo:number(value.tempo,60,200,'tempo'),meter:value.meter,root:number(value.root,36,72,'root',true),bars,layers,selectedLayer:value.selectedLayer,...loop};

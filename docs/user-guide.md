@@ -65,7 +65,7 @@ Dry duration includes release. Render buffer length includes bounded tail allowa
 
 ## Compatibility and limits
 
-The renderer bounds a note body to 2.5 seconds. The composition storage horizon is 16 beats; up to four bars and eight layers are supported. There is no probability lane, arbitrary clip dragging, song-section arranger or stem export in this release.
+The renderer bounds a note body to 2.5 seconds. The composition storage horizon is 128 beats; up to 32 bars, eight layers and 2,048 notes are supported. Shortening the arrangement retains later notes; increase Loop length to reveal them again. Existing Composition/v1 files still load; files exceeding the old limits require this version or newer. There is no probability lane, arbitrary clip dragging, song-section arranger or stem export in this release.
 
 Optional pan/loop and oscillator detune/pan/spread fields are accepted by this release. Older builds do not understand them. Legacy patches with omitted or zero-valued oscillator extensions retain their existing synthesis behavior. Export new work before restoring an older build.
 

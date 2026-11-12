@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Preserve SDK/React/JSX import identities with syntax-aware verification and exact host-shim checks; reject dependency swaps and unverified blobs.
+- Keep offline audio graphs alive through effect-tail rendering and release nodes after success or failure; add forced-GC PCM coverage without changing tolerances.
+- Clarify the 32-bar browser receipt's no-page-overflow assertion.
+
+- Index Compose grid and velocity data and isolate clock-only rendering, with dense 2,048-note playback/editing coverage.
+- Bind native verification to executing export/draft handlers and compare live six-assignment exports, including unsaved state.
+
+- Expand Compose to 32 bars and 2,048 notes, preserving notes when the visible arrangement is shortened. Cover late editing, persistence, playback and WAV export.
+- Run portable build/regression/browser CI on Windows, macOS and Linux, with per-platform evidence.
+- Add an opt-in native Hermes Desktop/configured-model gate and manually dispatched three-platform runner workflow. Native receipts require provisioned test hosts; fixtures remain a separate test lane.
+- Normalize checkout line endings and make the existing renderer test tolerate CRLF source files.
+
 ## 0.5.01 — 2026-11-10
 
 - Require Hermes human approval before native TypeScript output writes or JSX/TSX injection applies; scope persistent approvals to the destination.

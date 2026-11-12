@@ -1,4 +1,4 @@
-"""Production bundle with native host CSS/Dialog; real WebAudio, physically muted Chrome."""
+"""Production bundle with SDK/Dialog fixtures; real WebAudio, physically muted Chromium."""
 from pathlib import Path
 from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
 from playwright.sync_api import sync_playwright
@@ -25,31 +25,41 @@ def expect_pcm(page,event,action):
  before=starts(page);action()
  try:page.wait_for_function('([before,event])=>desktopTrace.starts.slice(before).some(row=>desktopSame(row,desktopExpected[event]))',arg=[before,event])
  except Exception:
+  REPORT['pcmMismatch']=page.evaluate('''([before,event])=>desktopTrace.starts.slice(before).map(row=>{const expected=desktopExpected[event];let max=0,sum=0,n=0;if(row.channels.length!==expected.channels.length||row.channels.some((ch,c)=>ch.length!==expected.channels[c].length))return {sameShape:false};row.channels.forEach((ch,c)=>ch.forEach((v,i)=>{const d=Math.abs(v-expected.channels[c][i]);max=Math.max(max,d);sum+=d*d;n++;}));return {sameShape:true,maxAbs:max,rms:Math.sqrt(sum/n)};})''', [before,event])
   print('PCM DEBUG',event,page.evaluate('({expected:Object.fromEntries(Object.entries(desktopExpected).map(([e,r])=>[e,r.hash])),starts:desktopTrace.starts.map(r=>r.hash),contexts:desktopTrace.contexts.map(c=>c.state),target:document.querySelector(".ss-desktop-target").innerText})'))
   raise
- check('Actual assigned PCM: '+event,True)
+ metrics=page.evaluate('''([before,event])=>{const b=desktopExpected[event],a=desktopTrace.starts.slice(before).find(row=>desktopSame(row,b));let maxAbs=0,sum=0,count=0;a.channels.forEach((ch,c)=>ch.forEach((v,i)=>{const d=Math.abs(v-b.channels[c][i]);maxAbs=Math.max(maxAbs,d);sum+=d*d;count++;}));return {maxAbs,rms:Math.sqrt(sum/count)};}''',[before,event])
+ check('Actual assigned PCM: '+event,True,metrics)
 def references(page):
  return page.evaluate('''async()=>{const theme=proof.getDoc().theme;window.desktopExpected={};for(const [event,patch] of Object.entries(theme.events)){const b=await studioOracle.renderSoundPatch(patch,{sampleRate:theme.sampleRate,masterGain:theme.masterGain});desktopExpected[event]={hash:pcmHash(b),channels:Array.from({length:b.numberOfChannels},(_,c)=>b.getChannelData(c))};}return Object.fromEntries(Object.entries(desktopExpected).map(([e,r])=>[e,r.hash]));}''')
 server=ThreadingHTTPServer(('127.0.0.1',0),Handler);threading.Thread(target=server.serve_forever,daemon=True).start()
 try:
  with sync_playwright() as pw:
-  browser=pw.chromium.launch(**browser_options())
+  options=browser_options();options['args']=[*options.get('args',[]),'--js-flags=--expose-gc']
+  browser=pw.chromium.launch(**options)
   page=browser.new_page(viewport={'width':1440,'height':1000});page.set_default_timeout(10000)
   page.on('pageerror',lambda e:REPORT['pageErrors'].append(str(e)))
-  page.add_init_script('''window.desktopTrace={contexts:[],starts:[]};window.pcmHash=b=>{let hash=2166136261;for(let c=0;c<b.numberOfChannels;c++){const data=b.getChannelData(c),bits=new Uint32Array(data.buffer,data.byteOffset,data.length);for(let i=0;i<bits.length;i+=17){hash^=bits[i];hash=Math.imul(hash,16777619);}}return b.length+':'+(hash>>>0);};window.desktopSame=(a,b)=>a.channels.length===b.channels.length&&a.channels.every((ch,c)=>ch.length===b.channels[c].length&&ch.every((v,i)=>Math.abs(v-b.channels[c][i])<=1e-5));const C=AudioContext;window.AudioContext=class extends C{constructor(...a){super(...a);desktopTrace.contexts.push(this);}createBufferSource(){const s=super.createBufferSource(),start=s.start.bind(s);s.start=(...args)=>{desktopTrace.starts.push({hash:pcmHash(s.buffer),channels:Array.from({length:s.buffer.numberOfChannels},(_,c)=>s.buffer.getChannelData(c)),time:this.currentTime});return start(...args)};return s;}};''')
+  page.add_init_script('''window.desktopTrace={contexts:[],starts:[]};window.pcmHash=b=>{let hash=2166136261;for(let c=0;c<b.numberOfChannels;c++){const data=b.getChannelData(c),bits=new Uint32Array(data.buffer,data.byteOffset,data.length);for(let i=0;i<bits.length;i+=17){hash^=bits[i];hash=Math.imul(hash,16777619);}}return b.length+':'+(hash>>>0);};window.desktopSame=(a,b)=>{if(a.channels.length!==b.channels.length||a.channels.some((ch,c)=>ch.length!==b.channels[c].length))return false;let max=0,squared=0,count=0;for(let c=0;c<a.channels.length;c++)for(let i=0;i<a.channels[c].length;i++){const d=Math.abs(a.channels[c][i]-b.channels[c][i]);if(!Number.isFinite(d))return false;max=Math.max(max,d);squared+=d*d;count++;}return max<=1e-4&&Math.sqrt(squared/count)<=1e-5;};const C=AudioContext;window.AudioContext=class extends C{constructor(...a){super(...a);desktopTrace.contexts.push(this);}createBufferSource(){const s=super.createBufferSource(),start=s.start.bind(s);s.start=(...args)=>{desktopTrace.starts.push({hash:pcmHash(s.buffer),channels:Array.from({length:s.buffer.numberOfChannels},(_,c)=>s.buffer.getChannelData(c)),time:this.currentTime});return start(...args)};return s;}};
+window.desktopOffline=[];const O=OfflineAudioContext;
+window.OfflineAudioContext=class extends O{constructor(...args){super(...args);const fromPlugin=(new Error().stack??'').includes('/proof/workspace-browser.js'),render=this.startRendering.bind(this),row={frames:this.length,rate:this.sampleRate,fromPlugin,collected:false};desktopOffline.push(row);this.startRendering=()=>{if(fromPlugin&&this.length/this.sampleRate>.6){this.suspend(.5).then(()=>new Promise(resolve=>setTimeout(resolve,20))).then(()=>{gc();row.collected=true;return this.resume();});}return render();};}};''')
   try:
    check('Exact verified production bundle',hashlib.sha256(Path(BUILD['pluginFile']).read_bytes()).hexdigest()==BUILD['pluginSha256'])
    page.goto(f'http://127.0.0.1:{server.server_port}/proof/workspace-browser.html');page.locator('.ss-desktop-target').wait_for()
+   check('Garbage-collection stress is available',page.evaluate('typeof gc==="function"'))
    page.evaluate('''()=>{const nav=document.createElement('nav');nav.id='host-proof-controls';nav.innerHTML='<button type="button" id="host-action">Host action</button><input id="host-field" aria-label="Host text field"><label><input type="checkbox" id="host-checkbox">Host toggle</label><form id="host-form"><input id="host-required" required aria-label="Required host field"><button id="host-submit">Submit host form</button></form>';nav.style.cssText='display:flex;gap:12px;padding:8px;align-items:center';document.body.prepend(nav);document.body.style.gridTemplateRows='auto minmax(0,1fr) auto';}''')
    page.locator('#host-action').click();check('Host events are silent before enable',starts(page)==0 and page.evaluate('desktopTrace.contexts.length')==0)
    page.locator('.ss-event-select').first.click();page.add_script_tag(url=f'http://127.0.0.1:{server.server_port}/evidence/workspace-upgrade/oracle.js')
    references(page)
+   # Independent canonical renders can drift by ~3e-5 peak in Chromium.
+   # Bound peak AND RMS error; all six assignment references must still differ.
+   check('PCM tolerance distinguishes all six event assignments',page.evaluate('()=>{const entries=Object.values(desktopExpected);return entries.every((a,i)=>entries.every((b,j)=>i===j||!desktopSame(a,b)));}'))
    page.get_by_role('button',name='Enable desktop sounds',exact=True).click()
    page.get_by_text('Assignments active',exact=True).wait_for()
    check('Explicit enable changes target, without auditioning',page.locator('.ss-desktop-target strong').inner_text()=='Hermes Desktop' and starts(page)==0)
    expect_pcm(page,'onHover',lambda:page.locator('#host-action').hover())
    expect_pcm(page,'onFocus',lambda:page.locator('#host-field').focus())
    expect_pcm(page,'onCommit',lambda:page.locator('#host-action').click())
+   check('Confirm PCM survives GC after notes end and before the reverb tail ends',page.evaluate('desktopOffline.some(row=>row.fromPlugin&&row.collected&&row.frames===desktopExpected.onCommit.channels[0].length)'))
    expect_pcm(page,'onToggle',lambda:page.locator('#host-checkbox').check())
    expect_pcm(page,'onError',lambda:page.locator('#host-submit').click())
    expect_pcm(page,'onBackgroundTaskComplete',lambda:page.evaluate("proof.emit({type:'message.complete',session_id:'proof-session',profile:'default',connectionId:'local',payload:{status:'complete',message_id:'test-complete-1'}})"))

@@ -4,9 +4,19 @@
   "kind": "source",
   "files": [
     {
+      "path": ".gitattributes",
+      "bytes": 108,
+      "sha256": "bdb7e734a7ed481025f10152bc1f88fda20e67bb1941d6cded3c421c8cb049e9"
+    },
+    {
       "path": ".github/workflows/ci.yml",
-      "bytes": 624,
-      "sha256": "a8898551467d63eb48d8f6c4d5b3776a7f65358659028aa8e825dbdac1cb2eb9"
+      "bytes": 1026,
+      "sha256": "36faba663c272700df2ccd25b2d35f93c7650daa8fe35a15676ea3301574d0a3"
+    },
+    {
+      "path": ".github/workflows/native.yml",
+      "bytes": 1069,
+      "sha256": "29e5bf6e15e8c6544d14671a1b22ff32734cca346177efdffbb01c7233724123"
     },
     {
       "path": ".gitignore",
@@ -15,8 +25,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 1883,
-      "sha256": "f2084cbf3b4f2feeb90fdcecddb40f91fba455271723e0acf499a3e8d819027a"
+      "bytes": 3107,
+      "sha256": "0d22e339911beca9797b852666a11693d47becbd420b28b5ffe272448d2e7317"
     },
     {
       "path": "INSTALL.md",
@@ -30,8 +40,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 6558,
-      "sha256": "0615b1e8b2fd1a31ad08e6f8ec82a172cac83854c949833a7313593c7e42f682"
+      "bytes": 6716,
+      "sha256": "053feb314358ca242770a8f2a0fcfd71fefa67f4fb9e6bb67bb8274c830cb4ac"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -60,8 +70,8 @@
     },
     {
       "path": "assets/studio-engine.ts",
-      "bytes": 44309,
-      "sha256": "a6323048a4b6982e026ee92fa46152f5350b0a9c5399094ad0aa3f2e6bfc21aa"
+      "bytes": 45291,
+      "sha256": "f61c38044d187136ef00f39b6933b25752da516b2fe42fd58a80fe9f396803e0"
     },
     {
       "path": "assets/studio-palettes.json",
@@ -115,8 +125,13 @@
     },
     {
       "path": "desktop-src/compose-model.ts",
-      "bytes": 6401,
-      "sha256": "108e31002742f66e6fa6a6b895bdfc1786d93fbb5068dada3b014e098ae2c126"
+      "bytes": 6584,
+      "sha256": "1f795f601bcb6179d90a1e3bd1f5c31076cf91f7568b84c7367a237187a1fd18"
+    },
+    {
+      "path": "desktop-src/compose-playhead.tsx",
+      "bytes": 984,
+      "sha256": "74d452c4e51e04d63cccaf9a98f1771c6c84ee8ff9f84a3e284ba8f2834cb933"
     },
     {
       "path": "desktop-src/compose-sound-editor-style.ts",
@@ -140,13 +155,13 @@
     },
     {
       "path": "desktop-src/compose-view-model.ts",
-      "bytes": 3109,
-      "sha256": "ad990adea6d7374a3e5ce90e32a96fc78942b6c7d29cd8697796c4effd95b10a"
+      "bytes": 4810,
+      "sha256": "48b4d54a95947daf346e515cf3f69ea53dfe0878d9fd14f70923a22f41ead8e5"
     },
     {
       "path": "desktop-src/compose-workspace.tsx",
-      "bytes": 41402,
-      "sha256": "fb468988835863f3af73019aaa73cbf288b25549e3bcad99e7eae23cabdf31ae"
+      "bytes": 41501,
+      "sha256": "0fd7297ba94b3d19d73e901aeae3fa3e8840b2b0f5a6c9053633aaba013b1340"
     },
     {
       "path": "desktop-src/export.ts",
@@ -375,8 +390,8 @@
     },
     {
       "path": "desktop/plugin.js",
-      "bytes": 680160,
-      "sha256": "7a0b2c7d7f51cb5b7eb043a0d8a94202c3c6d615617364775eecf8d9e3eab543"
+      "bytes": 684275,
+      "sha256": "f90f8cf022b55aa3e6c1f7c24fbc4090e0a526630728b374a40213f2007eba00"
     },
     {
       "path": "dist/injector.cjs",
@@ -415,13 +430,13 @@
     },
     {
       "path": "docs/user-guide.md",
-      "bytes": 7752,
-      "sha256": "8e27b3051042a3cc446566d7ef35991d0cd3f3bf18f5193de5b93254530b09b3"
+      "bytes": 7959,
+      "sha256": "d01cea0c26b7ca66be5a0f9c21bfa742b41535a1682f7889f8c2b221640994d9"
     },
     {
       "path": "docs/verification.md",
-      "bytes": 4210,
-      "sha256": "ec79e4b98d1353273a482e60b1bfc1992c1d6f394ef4b6a598407db9f9c9c8ad"
+      "bytes": 11170,
+      "sha256": "f08ad27f3317dc4e3218481a7199b922d08c5e7a94d009acb6fd0896816ce0fb"
     },
     {
       "path": "examples/glass-chords.sound.json",
@@ -500,8 +515,8 @@
     },
     {
       "path": "scripts/desktop-target-browser-proof.py",
-      "bytes": 9170,
-      "sha256": "8c95900f29c8bdcf4602c4669b219c166cd3636eb959fb5424978b378039bd8c"
+      "bytes": 11637,
+      "sha256": "f9465b355bdca7b7a27f62a1550732f4c5bfc223acb9ddd3ddabbc8db3090a67"
     },
     {
       "path": "scripts/draft-session-browser-proof.py",
@@ -514,19 +529,34 @@
       "sha256": "057aac3e88550b7cfda321f3bff1f9d7904c6ddc97efc413ae6ee33669f8ff77"
     },
     {
+      "path": "scripts/native-desktop-proof.py",
+      "bytes": 14342,
+      "sha256": "a6e76aa4110da962a2dccebd3b0046f1c1f0f01ecc4fa369012ec5b4d8152375"
+    },
+    {
+      "path": "scripts/native-source-verification.mjs",
+      "bytes": 2302,
+      "sha256": "4c1a21f9a7aba29e14abf5981739a85fa0ca841641e72e3025cebba057bcd8f1"
+    },
+    {
+      "path": "scripts/native-verifier-browser-proof.py",
+      "bytes": 6615,
+      "sha256": "8630cda9d4fbed103fea32d9709dba03fdbdc3fada8c1c541bfc3b4ca7a5f349"
+    },
+    {
       "path": "scripts/package.mjs",
       "bytes": 348,
       "sha256": "d87f3e3040cec40adb0bb47a95a9ee408cf580f4a77f5d7c17bb8f5038597072"
     },
     {
       "path": "scripts/package.py",
-      "bytes": 3306,
-      "sha256": "1afbbdf45fd888afc61f757b9c7efab5d1de6c32983e7a859d2827f651e8a2d0"
+      "bytes": 3323,
+      "sha256": "190b840efaee61817e09aecb513f5ff885f24707909cac7f14d39c6f74dad5e4"
     },
     {
       "path": "scripts/python.mjs",
-      "bytes": 608,
-      "sha256": "a564ab21ccace9ac94aa679c5ba7cf0d9d73524c4316cfea6b74c82c639d1d57"
+      "bytes": 767,
+      "sha256": "ce8d2fa6a9aa4eff3b313f5424952c2a5545635a240dc19b20ad17036c01db88"
     },
     {
       "path": "scripts/studio-export-proof.mjs",
@@ -540,13 +570,13 @@
     },
     {
       "path": "scripts/test-browser.mjs",
-      "bytes": 890,
-      "sha256": "10125567e35a178235f36ab86652266130bf4057817ef12331feaa9def47f8a9"
+      "bytes": 970,
+      "sha256": "85a357df4ccca357afe41cf191b50edf20975d20d0ed7816b422c88e03429465"
     },
     {
       "path": "scripts/test-files.json",
-      "bytes": 1256,
-      "sha256": "bf272f61dd113ba50b3687fac14480898bff174f2e91ab2d037e437ecbea936a"
+      "bytes": 1388,
+      "sha256": "0db7cddad670448d1f2d868175f507c0bea8f09afeefbcb67e597d864b84d83e"
     },
     {
       "path": "scripts/test.mjs",
@@ -560,8 +590,8 @@
     },
     {
       "path": "scripts/workspace-upgrade-proof.py",
-      "bytes": 14844,
-      "sha256": "4d3062f6b9c5785d9a6ee455732358cabebddf36c588d5bf237b03fc5580e4fc"
+      "bytes": 18738,
+      "sha256": "0dc1e66b30d2cbd5a525f6b800e177203ec631bc9ffe764eeb44f334664f9ee8"
     },
     {
       "path": "skills/sonic-ui/SKILL.md",
@@ -590,13 +620,13 @@
     },
     {
       "path": "tests/compose-core-audio.test.mjs",
-      "bytes": 7611,
-      "sha256": "33063e801aa134bf1479187349dbf8ca3fd870397e4891dabff66a454c08ac92"
+      "bytes": 8280,
+      "sha256": "f5acfbc44903028ca61638b8c33a2226fae75d07235cb005fd866ad325e4a3a6"
     },
     {
       "path": "tests/compose-core-store.test.mjs",
-      "bytes": 15218,
-      "sha256": "fcea8523fb3a0dff5ca1452f9d91816e0a8df8e1c4e450b372d4dd235fb3c0d8"
+      "bytes": 16584,
+      "sha256": "e075606f86c8e7606dfaa4b8ee5f7888b83b8b0444ac33c427e292c80abaa5cb"
     },
     {
       "path": "tests/compose-export-controller.test.mjs",
@@ -605,8 +635,8 @@
     },
     {
       "path": "tests/compose-export.test.mjs",
-      "bytes": 17032,
-      "sha256": "ac7f5aa6129c37b7943f8168dcac1de87fe2234ed1e11fb86fb5c7fad244a8e9"
+      "bytes": 17749,
+      "sha256": "6964a49bb6249501b334b2cbd74beebbe41cd9fa7b5b09a56bc99e4d13048ffc"
     },
     {
       "path": "tests/compose-fx-parameters.test.mjs",
@@ -615,8 +645,8 @@
     },
     {
       "path": "tests/compose-grid-interactions.test.mjs",
-      "bytes": 3777,
-      "sha256": "37e840e659f1e0f031ab8967652d2c879cfa641b0f7f9d97f38b09a9e03cfc78"
+      "bytes": 6132,
+      "sha256": "d5dbd37ad57d6d60f8d990e0c11e571dd2e11bbc304c1fde540a6f24548fc2ff"
     },
     {
       "path": "tests/compose-live-audio.test.mjs",
@@ -632,6 +662,11 @@
       "path": "tests/fixtures/quiet-drafts/completion.json",
       "bytes": 1909,
       "sha256": "a42cf2d597551d75a04019008e046a3094ef887d8100d857d20206151240ff2f"
+    },
+    {
+      "path": "tests/native-source-verification.test.mjs",
+      "bytes": 3561,
+      "sha256": "15a6935d8f6845291bfc605888fbf121e0032348c1994fe12320b291a8a4aafe"
     },
     {
       "path": "tests/patch-parity.test.mjs",
@@ -665,8 +700,8 @@
     },
     {
       "path": "tests/studio-engine-v4.test.mjs",
-      "bytes": 11253,
-      "sha256": "b3bb692916d31d00a40008a16f72c4d05efa7b8613bdbc3049c5a4fb89a0bf38"
+      "bytes": 11277,
+      "sha256": "493e188ec8a1f2c173d5022a2bba2915efa89b0e72a68639ffc17cbd42de0d7e"
     },
     {
       "path": "tests/studio-engine.test.mjs",
@@ -687,6 +722,11 @@
       "path": "tests/studio-playback-position.test.mjs",
       "bytes": 2637,
       "sha256": "2b643c6a25999677c7e90e6d44a93ed73881b654f4147b8e07504e6ffd982de4"
+    },
+    {
+      "path": "tests/studio-render-lifetime.test.mjs",
+      "bytes": 3447,
+      "sha256": "3f1b3b4fc0d9de96d41c885b5873ed378a049c81bb0f15efdc0a7760440bece5"
     },
     {
       "path": "tests/studio-repository.test.mjs",
@@ -717,6 +757,11 @@
       "path": "tests/test_compose_fx_parameters.py",
       "bytes": 6522,
       "sha256": "92750618a99dcc2f4ae0b0acc1c9f50c13018a8b950ece5c3475d74dc2f1a82e"
+    },
+    {
+      "path": "tests/test_native_verification.py",
+      "bytes": 3345,
+      "sha256": "8df1e1b3a5b8d44455a61f1bdc690fa26f745d431293e21faa5474b52006d79b"
     },
     {
       "path": "tests/test_registration.py",

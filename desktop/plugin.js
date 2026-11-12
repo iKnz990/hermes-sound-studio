@@ -1,9 +1,9 @@
 // desktop-src/plugin.tsx
-import { useSyncExternalStore as useSyncExternalStore3 } from "react";
+import { useSyncExternalStore as useSyncExternalStore4 } from "react";
 import { host, ROUTES_AREA, SIDEBAR_NAV_AREA, STATUSBAR_AREAS } from "@hermes/plugin-sdk";
 
 // desktop-src/compose-workspace.tsx
-import React15, { useEffect as useEffect5, useRef as useRef5, useState as useState7, useSyncExternalStore as useSyncExternalStore2 } from "react";
+import React16, { useEffect as useEffect5, useMemo, useRef as useRef5, useState as useState7, useSyncExternalStore as useSyncExternalStore3 } from "react";
 
 // assets/studio-engine.ts
 var SOUND_EVENTS = ["onHover", "onFocus", "onCommit", "onToggle", "onError", "onBackgroundTaskComplete"];
@@ -242,9 +242,9 @@ function describeSoundRouting(patch) {
   node("filter-cutoff", "Filter cutoff", "parameter");
   node("filter-resonance", "Filter resonance", "parameter");
   node("pan-control", "Stereo pan", "parameter");
-  if (p.lfo1.enabled && p.lfo1.depth) mod("lfo1", "filter-cutoff", "direct \xD7160 cents");
+  if (p.lfo1.enabled && p.lfo1.depth) mod("lfo1", "filter-cutoff", "direct \xC3\u2014160 cents");
   const pitchAvailable = p.osc2.enabled && p.osc2.vol > 0, panAvailable = p.playback.stereo === "Stereo";
-  if (p.lfo2.enabled && p.lfo2.depth && pitchAvailable) mod("lfo2", "osc2-pitch", "direct \xD740 cents");
+  if (p.lfo2.enabled && p.lfo2.depth && pitchAvailable) mod("lfo2", "osc2-pitch", "direct \xC3\u201440 cents");
   const sourceIds = { "LFO 1": "lfo1", "LFO 2": "lfo2", "Env 1 (ADSR)": "env1", "Velocity": "velocity" };
   const destIds = { "Filter Cutoff": "filter-cutoff", "Osc 1 Level": "osc1-level", "Pan": "pan-control", "Filter Resonance": "filter-resonance", "Osc 2 Pitch": "osc2-pitch" };
   const scales = { "Filter Cutoff": 720, "Osc 1 Level": 0.35, "Pan": 0.32, "Filter Resonance": 1.8, "Osc 2 Pitch": 200 };
@@ -276,15 +276,17 @@ function envelope(param, t, p) {
   if (r) param.linearRampToValueAtTime(0, t + p.duration);
   else param.setValueAtTime(0, t + p.duration);
 }
-function modulation(ctx, p, t, end, target, source, amount) {
+function modulation(ctx, p, t, end, target, source, amount, owned) {
   const scaling = ctx.createGain();
+  owned.push(scaling);
   scaling.gain.value = amount;
   source.connect(scaling);
   scaling.connect(target);
 }
-function makeLfo(ctx, cfg, t, end) {
+function makeLfo(ctx, cfg, t, end, owned) {
   if (!cfg.enabled || !cfg.depth) return null;
   const o = ctx.createOscillator(), g = ctx.createGain();
+  owned.push(o, g);
   o.type = cfg.type;
   o.frequency.value = cfg.rate;
   g.gain.value = cfg.depth;
@@ -316,14 +318,19 @@ async function renderSoundPatch(patch, options = {}) {
   const tail = p.fxParameters ? p.fxOrder ? 0.035 + (p.fx.chorus ? 0.07 : 0) + (p.fx.delay ? delayTail : 0) + (p.fx.reverb ? reverbTail : 0) : Math.max(0.035, p.fx.chorus ? 0.07 : 0, p.fx.delay ? delayTail : 0, p.fx.reverb ? reverbTail : 0) : p.fxOrder ? 0.035 + (p.fx.chorus ? 0.07 : 0) + (p.fx.delay ? 1.16 : 0) + (p.fx.reverb ? 0.68 : 0) : p.fx.delay ? 1.16 : p.fx.reverb ? 0.68 : p.fx.chorus ? 0.07 : 0.035;
   const seconds2 = p.duration + (p.chords.length - 1) * 0.024 + tail;
   const ctx = new OfflineAudioContext(2, Math.ceil(seconds2 * rate), rate);
-  const voice = ctx.createGain();
+  const owned = [];
+  const retain = (node) => {
+    owned.push(node);
+    return node;
+  };
+  const voice = retain(ctx.createGain());
   let current = voice;
   let sum;
   if (p.fxOrder) {
     for (const key of p.fxOrder) {
       if (!p.fx[key]) continue;
       if (key === "eq") {
-        const eq = ctx.createBiquadFilter();
+        const eq = retain(ctx.createBiquadFilter());
         eq.type = "peaking";
         eq.frequency.value = params.eq.frequency;
         eq.Q.value = params.eq.q;
@@ -331,7 +338,7 @@ async function renderSoundPatch(patch, options = {}) {
         current.connect(eq);
         current = eq;
       } else if (key === "saturation") {
-        const shaper = ctx.createWaveShaper(), curve = new Float32Array(1025);
+        const shaper = retain(ctx.createWaveShaper()), curve = new Float32Array(1025);
         const k = 1.5 + params.saturation.drive * 0.55;
         for (let i = 0; i < curve.length; i++) {
           const x = i / 512 - 1;
@@ -341,7 +348,7 @@ async function renderSoundPatch(patch, options = {}) {
         current.connect(shaper);
         current = shaper;
       } else if (key === "compressor") {
-        const comp = ctx.createDynamicsCompressor();
+        const comp = retain(ctx.createDynamicsCompressor());
         comp.threshold.value = params.compressor.thresholdDb;
         comp.knee.value = params.compressor.kneeDb;
         comp.ratio.value = params.compressor.ratio;
@@ -350,10 +357,10 @@ async function renderSoundPatch(patch, options = {}) {
         current.connect(comp);
         current = comp;
       } else {
-        const stage = ctx.createGain();
+        const stage = retain(ctx.createGain());
         current.connect(stage);
         if (key === "chorus") {
-          const delay = ctx.createDelay(0.06), wet = ctx.createGain(), osc = ctx.createOscillator(), mod = ctx.createGain();
+          const delay = retain(ctx.createDelay(0.06)), wet = retain(ctx.createGain()), osc = retain(ctx.createOscillator()), mod = retain(ctx.createGain());
           delay.delayTime.value = 0.018;
           wet.gain.value = params.chorus.mix;
           osc.frequency.value = params.chorus.rate;
@@ -366,7 +373,7 @@ async function renderSoundPatch(patch, options = {}) {
           delay.connect(wet);
           wet.connect(stage);
         } else if (key === "delay") {
-          const d = ctx.createDelay(p.fxParameters ? 1 : 0.2), feedback = ctx.createGain(), wet = ctx.createGain();
+          const d = retain(ctx.createDelay(p.fxParameters ? 1 : 0.2)), feedback = retain(ctx.createGain()), wet = retain(ctx.createGain());
           d.delayTime.value = params.delay.time;
           feedback.gain.value = params.delay.feedback;
           wet.gain.value = params.delay.mix;
@@ -376,7 +383,7 @@ async function renderSoundPatch(patch, options = {}) {
           d.connect(wet);
           wet.connect(stage);
         } else {
-          const conv = ctx.createConvolver(), wet = ctx.createGain();
+          const conv = retain(ctx.createConvolver()), wet = retain(ctx.createGain());
           conv.normalize = false;
           conv.buffer = impulse(ctx, p.seed, p.playback.stereo === "Stereo", params.reverb.decay);
           wet.gain.value = params.reverb.mix;
@@ -387,11 +394,11 @@ async function renderSoundPatch(patch, options = {}) {
         current = stage;
       }
     }
-    sum = ctx.createGain();
+    sum = retain(ctx.createGain());
     current.connect(sum);
   } else {
     if (p.fx.eq) {
-      const eq = ctx.createBiquadFilter();
+      const eq = retain(ctx.createBiquadFilter());
       eq.type = "peaking";
       eq.frequency.value = params.eq.frequency;
       eq.Q.value = params.eq.q;
@@ -400,7 +407,7 @@ async function renderSoundPatch(patch, options = {}) {
       current = eq;
     }
     if (p.fx.saturation) {
-      const shaper = ctx.createWaveShaper(), curve = new Float32Array(1025);
+      const shaper = retain(ctx.createWaveShaper()), curve = new Float32Array(1025);
       const k = 1.5 + params.saturation.drive * 0.55;
       for (let i = 0; i < curve.length; i++) {
         const x = i / 512 - 1;
@@ -411,7 +418,7 @@ async function renderSoundPatch(patch, options = {}) {
       current = shaper;
     }
     if (p.fx.compressor) {
-      const comp = ctx.createDynamicsCompressor();
+      const comp = retain(ctx.createDynamicsCompressor());
       comp.threshold.value = params.compressor.thresholdDb;
       comp.knee.value = params.compressor.kneeDb;
       comp.ratio.value = params.compressor.ratio;
@@ -420,10 +427,10 @@ async function renderSoundPatch(patch, options = {}) {
       current.connect(comp);
       current = comp;
     }
-    sum = ctx.createGain();
+    sum = retain(ctx.createGain());
     current.connect(sum);
     if (p.fx.chorus) {
-      const delay = ctx.createDelay(0.06), wet = ctx.createGain(), osc = ctx.createOscillator(), mod = ctx.createGain();
+      const delay = retain(ctx.createDelay(0.06)), wet = retain(ctx.createGain()), osc = retain(ctx.createOscillator()), mod = retain(ctx.createGain());
       delay.delayTime.value = 0.018;
       wet.gain.value = params.chorus.mix;
       osc.frequency.value = params.chorus.rate;
@@ -437,7 +444,7 @@ async function renderSoundPatch(patch, options = {}) {
       wet.connect(sum);
     }
     if (p.fx.delay) {
-      const d = ctx.createDelay(p.fxParameters ? 1 : 0.2), feedback = ctx.createGain(), wet = ctx.createGain();
+      const d = retain(ctx.createDelay(p.fxParameters ? 1 : 0.2)), feedback = retain(ctx.createGain()), wet = retain(ctx.createGain());
       d.delayTime.value = params.delay.time;
       feedback.gain.value = params.delay.feedback;
       wet.gain.value = params.delay.mix;
@@ -448,7 +455,7 @@ async function renderSoundPatch(patch, options = {}) {
       wet.connect(sum);
     }
     if (p.fx.reverb) {
-      const conv = ctx.createConvolver(), wet = ctx.createGain();
+      const conv = retain(ctx.createConvolver()), wet = retain(ctx.createGain());
       conv.normalize = false;
       conv.buffer = impulse(ctx, p.seed, p.playback.stereo === "Stereo", params.reverb.decay);
       wet.gain.value = params.reverb.mix;
@@ -457,10 +464,10 @@ async function renderSoundPatch(patch, options = {}) {
       wet.connect(sum);
     }
   }
-  const limiter = ctx.createWaveShaper(), ceiling = new Float32Array(1025);
+  const limiter = retain(ctx.createWaveShaper()), ceiling = new Float32Array(1025);
   for (let i = 0; i < ceiling.length; i++) ceiling[i] = Math.tanh((i / 512 - 1) * 1.05) / Math.tanh(1.05);
   limiter.curve = ceiling;
-  const level = ctx.createGain();
+  const level = retain(ctx.createGain());
   level.gain.value = masterGain;
   sum.connect(level);
   level.connect(limiter);
@@ -468,23 +475,23 @@ async function renderSoundPatch(patch, options = {}) {
   const rand = random(p.seed);
   p.chords.forEach((semi, idx) => {
     const t = idx * 0.024, end = t + p.duration, note = p.baseFreq * 2 ** (semi / 12);
-    const filter = ctx.createBiquadFilter();
+    const filter = retain(ctx.createBiquadFilter());
     filter.type = p.filter.type;
     filter.frequency.value = p.filter.cutoff;
     filter.Q.value = p.filter.res;
-    const drive = ctx.createWaveShaper(), driveCurve = new Float32Array(513);
+    const drive = retain(ctx.createWaveShaper()), driveCurve = new Float32Array(513);
     const driveAmount = 1 + p.filter.drive * 0.075;
     for (let i = 0; i < driveCurve.length; i++) driveCurve[i] = Math.tanh((i / 256 - 1) * driveAmount) / driveAmount;
     drive.curve = driveCurve;
     drive.connect(filter);
-    const env = ctx.createGain();
+    const env = retain(ctx.createGain());
     env.gain.value = 0;
-    const peak = ctx.createGain();
+    const peak = retain(ctx.createGain());
     peak.gain.value = 0.11 * p.intensity / 100 * 10 ** (p.playback.gainDb / 20) / Math.sqrt(p.chords.length);
     envelope(env.gain, t, p);
     let panParam;
     if (p.playback.stereo === "Stereo") {
-      const pan = ctx.createStereoPanner();
+      const pan = retain(ctx.createStereoPanner());
       pan.pan.value = Math.max(-0.65, Math.min(0.65, (idx - (p.chords.length - 1) / 2) * 0.24));
       filter.connect(pan);
       pan.connect(env);
@@ -492,26 +499,26 @@ async function renderSoundPatch(patch, options = {}) {
     } else filter.connect(env);
     env.connect(peak);
     peak.connect(voice);
-    const osc1Gain = ctx.createGain(), osc2Gain = ctx.createGain();
+    const osc1Gain = retain(ctx.createGain()), osc2Gain = retain(ctx.createGain());
     osc1Gain.gain.value = p.osc1.vol;
     osc2Gain.gain.value = p.osc2.vol;
     let pitchParam;
     const pitchParams = [];
     for (const [i, cfg] of [p.osc1, p.osc2, p.osc3].entries()) if (cfg.enabled && cfg.vol) {
-      const osc = ctx.createOscillator();
+      const osc = retain(ctx.createOscillator());
       osc.type = cfg.type;
       osc.frequency.value = note * 2 ** (cfg.tune / 12);
-      const gain = i === 0 ? osc1Gain : i === 1 ? osc2Gain : ctx.createGain();
+      const gain = i === 0 ? osc1Gain : i === 1 ? osc2Gain : retain(ctx.createGain());
       if (i === 2) gain.gain.value = cfg.vol;
       osc.detune.value = cfg.detune ?? 0;
       const spread = cfg.spread ?? 0;
       let destination = gain;
       if (spread) {
-        const norm = ctx.createGain();
+        const norm = retain(ctx.createGain());
         norm.gain.value = 0.5;
         norm.connect(gain);
         destination = norm;
-        const twin = ctx.createOscillator();
+        const twin = retain(ctx.createOscillator());
         twin.type = cfg.type;
         twin.frequency.value = osc.frequency.value;
         twin.detune.value = (cfg.detune ?? 0) + spread;
@@ -523,7 +530,7 @@ async function renderSoundPatch(patch, options = {}) {
       }
       osc.connect(destination);
       if (p.playback.stereo === "Stereo" && (cfg.pan ?? 0) !== 0) {
-        const pan = ctx.createStereoPanner();
+        const pan = retain(ctx.createStereoPanner());
         pan.pan.value = cfg.pan;
         gain.connect(pan);
         pan.connect(drive);
@@ -538,7 +545,7 @@ async function renderSoundPatch(patch, options = {}) {
     if (p.noise) {
       const buffer = ctx.createBuffer(1, Math.max(1, Math.ceil(Math.min(0.08, p.duration) * rate)), rate), data = buffer.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = rand() * 2 - 1;
-      const src = ctx.createBufferSource(), gain = ctx.createGain();
+      const src = retain(ctx.createBufferSource()), gain = retain(ctx.createGain());
       src.buffer = buffer;
       gain.gain.value = p.noise * 0.35;
       src.connect(gain);
@@ -551,11 +558,11 @@ async function renderSoundPatch(patch, options = {}) {
       let l1 = null, l2 = null, e1 = null, v = null;
       for (const row of routes) {
         let source = null;
-        if (row.source === "LFO 1") source = l1 ?? (l1 = makeLfo(ctx, p.lfo1, t, end));
-        if (row.source === "LFO 2") source = l2 ?? (l2 = makeLfo(ctx, p.lfo2, t, end));
+        if (row.source === "LFO 1") source = l1 ?? (l1 = makeLfo(ctx, p.lfo1, t, end, owned));
+        if (row.source === "LFO 2") source = l2 ?? (l2 = makeLfo(ctx, p.lfo2, t, end, owned));
         if (row.source === "Env 1 (ADSR)") {
           if (!e1) {
-            e1 = ctx.createConstantSource();
+            e1 = retain(ctx.createConstantSource());
             envelope(e1.offset, t, p);
             e1.start(t);
             e1.stop(end);
@@ -564,7 +571,7 @@ async function renderSoundPatch(patch, options = {}) {
         }
         if (row.source === "Velocity") {
           if (!v) {
-            v = ctx.createConstantSource();
+            v = retain(ctx.createConstantSource());
             v.offset.value = p.intensity / 100;
             v.start(t);
             v.stop(end);
@@ -576,17 +583,24 @@ async function renderSoundPatch(patch, options = {}) {
         if (!target) continue;
         const amount = row.amount * (row.dest === "Filter Cutoff" ? 720 : row.dest === "Filter Resonance" ? 1.8 : row.dest === "Osc 2 Pitch" ? 200 : row.dest === "Pan" ? 0.32 : 0.35);
         if (row.dest === "Osc 2 Pitch") {
-          for (const param of pitchParams) modulation(ctx, p, t, end, param, source, amount);
-        } else modulation(ctx, p, t, end, target, source, amount);
+          for (const param of pitchParams) modulation(ctx, p, t, end, param, source, amount, owned);
+        } else modulation(ctx, p, t, end, target, source, amount, owned);
       }
     }
-    const baseLfo1 = makeLfo(ctx, p.lfo1, t, end);
-    if (baseLfo1) modulation(ctx, p, t, end, filter.detune, baseLfo1, 160);
-    const baseLfo2 = makeLfo(ctx, p.lfo2, t, end);
-    if (baseLfo2) for (const param of pitchParams) modulation(ctx, p, t, end, param, baseLfo2, 40);
+    const baseLfo1 = makeLfo(ctx, p.lfo1, t, end, owned);
+    if (baseLfo1) modulation(ctx, p, t, end, filter.detune, baseLfo1, 160, owned);
+    const baseLfo2 = makeLfo(ctx, p.lfo2, t, end, owned);
+    if (baseLfo2) for (const param of pitchParams) modulation(ctx, p, t, end, param, baseLfo2, 40, owned);
     wireMatrix();
   });
-  return ctx.startRendering();
+  try {
+    return await ctx.startRendering();
+  } finally {
+    for (const node of owned) try {
+      node.disconnect();
+    } catch {
+    }
+  }
 }
 function analyzePcm(buffer, bins = 64) {
   if (!Number.isInteger(bins) || bins < 4 || bins > 256) throw new RangeError("bins");
@@ -4019,7 +4033,7 @@ function setAdsrStage(patch, key, value) {
 }
 
 // raw-text:assets/studio-engine.ts
-var studio_engine_default = "/* Sound Studio v1. Standalone canonical renderer: this very source is embedded in TS exports. */\nexport const SOUND_EVENTS = ['onHover','onFocus','onCommit','onToggle','onError','onBackgroundTaskComplete'] as const;\nexport type SoundEvent = typeof SOUND_EVENTS[number];\nexport const FX_ORDER = ['eq','saturation','compressor','chorus','delay','reverb'] as const;\nexport type FxKey = typeof FX_ORDER[number];\nexport type FxParameters = {\n  eq:{frequency:number;gainDb:number;q:number};saturation:{drive:number};\n  compressor:{thresholdDb:number;ratio:number;attack:number;release:number;kneeDb:number};\n  chorus:{rate:number;depth:number;mix:number};delay:{time:number;feedback:number;mix:number};reverb:{decay:number;mix:number};\n};\n/** Seconds, Hz and dB as named; mix is additive wet-send gain, not a dry/wet crossfade. */\nexport const FX_PARAMETER_LIMITS = {\n  eq:{frequency:[40,16000],gainDb:[-12,12],q:[0.1,8]},saturation:{drive:[0,10]},\n  compressor:{thresholdDb:[-60,0],ratio:[1,20],attack:[0.001,1],release:[0.01,2],kneeDb:[0,40]},\n  chorus:{rate:[0.1,5],depth:[0,0.01],mix:[0,1]},delay:{time:[0.01,1],feedback:[0,0.7],mix:[0,1]},reverb:{decay:[0.05,2],mix:[0,1]}\n} as const;\ntype Osc = {enabled:boolean;type:'sine'|'triangle'|'square'|'sawtooth';vol:number;tune:number;detune?:number;pan?:number;spread?:number};\ntype Lfo = {enabled:boolean;type:'sine'|'triangle'|'square';rate:number;depth:number};\ntype Matrix = {source:'LFO 1'|'LFO 2'|'Env 1 (ADSR)'|'Velocity';amount:number;dest:'Filter Cutoff'|'Osc 1 Level'|'Pan'|'Filter Resonance'|'Osc 2 Pitch'};\nexport type SoundPatch = {\n  schemaVersion:'SoundPatch/v1';seed:number;name:string;style:'soft'|'crisp'|'warm'|'mechanical'|'nocturnal';character:string;\n  duration:number;intensity:number;baseFreq:number;chords:number[];osc1:Osc;osc2:Osc;osc3:Osc;noise:number;\n  adsr:{a:number;d:number;s:number;r:number};filter:{type:'lowpass'|'highpass'|'bandpass'|'notch';cutoff:number;res:number;drive:number};\n  lfo1:Lfo;lfo2:Lfo;env2:{enabled:false;type:'exponential';rate:number;depth:number};modMatrix:Matrix[];\n  fx:{eq:boolean;compressor:boolean;saturation:boolean;chorus:boolean;delay:boolean;reverb:boolean};\n  fxOrder?:FxKey[];\n  fxParameters?:FxParameters;\n  playback:{mode:'On event (once)';gainDb:number;stereo:'Mono'|'Stereo'};\n};\nexport type SoundTheme = {schemaVersion:'SoundTheme/v1';engineVersion:'sound-studio-dsp/v1';name:string;sampleRate:44100|48000|96000;masterGain:number;events:Record<SoundEvent,SoundPatch>};\n\nconst DEFAULT: SoundPatch = {\n  schemaVersion:'SoundPatch/v1',seed:0x5161cafe,name:'Soft Chime',style:'soft',character:'Soft & Smooth',duration:0.36,intensity:70,baseFreq:330,chords:[0],\n  osc1:{enabled:true,type:'sine',vol:0.85,tune:0},osc2:{enabled:true,type:'triangle',vol:0.4,tune:7},osc3:{enabled:false,type:'square',vol:0.2,tune:-12},noise:0.06,\n  adsr:{a:12,d:96,s:0.72,r:210},filter:{type:'lowpass',cutoff:4200,res:1.8,drive:3},\n  lfo1:{enabled:true,type:'sine',rate:2,depth:0.38},lfo2:{enabled:true,type:'triangle',rate:0.5,depth:0.25},\n  env2:{enabled:false,type:'exponential',rate:1,depth:0.15},modMatrix:[\n    {source:'LFO 1',amount:0.38,dest:'Filter Cutoff'},\n    {source:'Env 1 (ADSR)',amount:0.72,dest:'Osc 1 Level'},\n    {source:'LFO 2',amount:-0.25,dest:'Pan'},\n    {source:'Velocity',amount:0.5,dest:'Filter Resonance'}\n  ],\n  fx:{eq:true,compressor:true,saturation:true,chorus:false,delay:true,reverb:true},\n  playback:{mode:'On event (once)',gainDb:0,stereo:'Stereo'}\n};\nconst own = (v:unknown): v is Record<string,unknown> => !!v && typeof v==='object' && !Array.isArray(v) && Object.getPrototypeOf(v)===Object.prototype;\nfunction shape(v:unknown, keys:readonly string[], label:string): asserts v is Record<string,unknown> {\n  if (!own(v) || Object.keys(v).length!==keys.length || keys.some(k=>!Object.prototype.hasOwnProperty.call(v,k))) throw new TypeError(`${label}: invalid keys`);\n}\nfunction num(v:unknown,min:number,max:number,label:string):number {\n  if (typeof v!=='number'||!Number.isFinite(v)||v<min||v>max) throw new RangeError(`${label}: out of range`);\n  return v;\n}\nfunction choice<T extends string>(v:unknown,values:readonly T[],label:string):T {\n  if (typeof v!=='string'||!values.includes(v as T)) throw new TypeError(`${label}: unsupported value`);\n  return v as T;\n}\nfunction label(v:unknown,what:string,max:number):string {\n  if (typeof v!=='string'||!v.trim()||v.length>max||/[\\u0000-\\u001f\\u007f]/.test(v)) throw new TypeError(`${what}: invalid text`);\n  return v;\n}\nfunction bool(v:unknown,what:string):boolean {if(typeof v!=='boolean')throw new TypeError(`${what}: expected boolean`);return v;}\nconst oscTypes=['sine','triangle','square','sawtooth'] as const;\nconst lfoTypes=['sine','triangle','square'] as const;\nconst sources=['LFO 1','LFO 2','Env 1 (ADSR)','Velocity'] as const;\nconst destinations=['Filter Cutoff','Osc 1 Level','Pan','Filter Resonance','Osc 2 Pitch'] as const;\nfunction oscillator(v:unknown,what:string):Osc {\n  const extra=own(v)?['detune','pan','spread'].filter(key=>Object.hasOwn(v,key)):[];\n  shape(v,['enabled','type','vol','tune',...extra],what);\n  return {enabled:bool(v.enabled,what),type:choice(v.type,oscTypes,what),vol:num(v.vol,0,1,what),tune:num(v.tune,-24,24,what),\n    ...(extra.includes('detune')?{detune:num(v.detune,-100,100,`${what}.detune`)}:{}),\n    ...(extra.includes('pan')?{pan:num(v.pan,-1,1,`${what}.pan`)}:{}),\n    ...(extra.includes('spread')?{spread:num(v.spread,0,50,`${what}.spread`)}:{})};\n}\nfunction lfo(v:unknown,what:string):Lfo {\n  shape(v,['enabled','type','rate','depth'],what);\n  return {enabled:bool(v.enabled,what),type:choice(v.type,lfoTypes,what),rate:num(v.rate,0.1,20,what),depth:num(v.depth,0,1,what)};\n}\nfunction validateFxParameters(value:unknown):FxParameters {\n  shape(value,FX_ORDER,'fxParameters');\n  const clean:Record<string,Record<string,number>>={};\n  for(const effect of FX_ORDER){\n    const limits=FX_PARAMETER_LIMITS[effect],input=value[effect];\n    shape(input,Object.keys(limits),`fxParameters.${effect}`);\n    const fields:Record<string,number>={};\n    for(const [field,[min,max]] of Object.entries(limits))fields[field]=num(input[field],min,max,`fxParameters.${effect}.${field}`);\n    clean[effect]=fields;\n  }\n  return clean as FxParameters;\n}\n/** Resolve defaults without materializing the optional field on legacy patches. Always returns a deep clone. */\nexport function getFxParameters(patch:SoundPatch):FxParameters {\n  if(Object.prototype.hasOwnProperty.call(patch,'fxParameters'))return validateFxParameters(patch.fxParameters);\n  return {eq:{frequency:1600,gainDb:3.5,q:0.8},saturation:{drive:num(patch.filter.drive,0,10,'drive')},\n    compressor:{thresholdDb:-25,ratio:3.5,attack:0.003,release:0.16,kneeDb:10},\n    chorus:{rate:0.9,depth:0.0035,mix:0.22},delay:{time:0.145,feedback:0.22,mix:0.23},reverb:{decay:0.62,mix:0.24}};\n}\nexport function validateSoundPatch(value:unknown):SoundPatch {\n  const ordered=own(value)&&Object.prototype.hasOwnProperty.call(value,'fxOrder');\n  const parameterized=own(value)&&Object.prototype.hasOwnProperty.call(value,'fxParameters');\n  shape(value,['schemaVersion','seed','name','style','character','duration','intensity','baseFreq','chords','osc1','osc2','osc3','noise','adsr','filter','lfo1','lfo2','env2','modMatrix','fx','playback',...(ordered?['fxOrder']:[]),...(parameterized?['fxParameters']:[])],'patch');\n  if(ordered&&(!Array.isArray(value.fxOrder)||value.fxOrder.length!==FX_ORDER.length||new Set(value.fxOrder).size!==FX_ORDER.length||value.fxOrder.some((key:unknown)=>!FX_ORDER.includes(key as FxKey))))throw new TypeError('fxOrder: expected complete effect permutation');\n  if(value.schemaVersion!=='SoundPatch/v1')throw new TypeError('patch version');\n  const seed=num(value.seed,0,4294967295,'seed');if(!Number.isInteger(seed))throw new TypeError('seed must be uint32');\n  const duration=num(value.duration,0.02,2.5,'duration');\n  const baseFreq=num(value.baseFreq,40,4000,'baseFreq');\n  if(!Array.isArray(value.chords)||value.chords.length<1||value.chords.length>6)throw new TypeError('chords length');\n  const chords=value.chords.map((n:unknown)=>num(n,-24,24,'chord'));\n  const osc1=oscillator(value.osc1,'osc1'),osc2=oscillator(value.osc2,'osc2'),osc3=oscillator(value.osc3,'osc3');\n  // Validate for the lowest supported sample rate. 0.42 Nyquist leaves pitch-modulation headroom.\n  for(const semi of chords)for(const osc of [osc1,osc2,osc3])if(osc.enabled && baseFreq*2**((semi+osc.tune+2+((osc.detune??0)+(osc.spread??0))/100)/12)>0.42*44100)throw new RangeError('oscillator frequency exceeds supported band');\n  shape(value.adsr,['a','d','s','r'],'adsr');\n  const adsr={a:num(value.adsr.a,0,1000,'attack'),d:num(value.adsr.d,0,1500,'decay'),s:num(value.adsr.s,0,1,'sustain'),r:num(value.adsr.r,0,2000,'release')};\n  if((adsr.a+adsr.d+adsr.r)/1000>duration+1e-6)throw new RangeError('duration shorter than ADSR');\n  shape(value.filter,['type','cutoff','res','drive'],'filter');\n  const filter={type:choice(value.filter.type,['lowpass','highpass','bandpass','notch'] as const,'filter type'),cutoff:num(value.filter.cutoff,40,16000,'cutoff'),res:num(value.filter.res,0.1,8,'resonance'),drive:num(value.filter.drive,0,10,'drive')};\n  shape(value.env2,['enabled','type','rate','depth'],'env2');\n  if(value.env2.enabled!==false||value.env2.type!=='exponential')throw new TypeError('Envelope 2 unavailable in v1');\n  const env2={enabled:false as const,type:'exponential' as const,rate:num(value.env2.rate,0,20,'env2 rate'),depth:num(value.env2.depth,0,1,'env2 depth')};\n  if(!Array.isArray(value.modMatrix)||value.modMatrix.length>12)throw new TypeError('matrix length');\n  const modMatrix=value.modMatrix.map((r:unknown):Matrix=>{\n    shape(r,['source','amount','dest'],'matrix row');\n    return {source:choice(r.source,sources,'matrix source'),amount:num(r.amount,-1,1,'matrix amount'),dest:choice(r.dest,destinations,'matrix destination')};\n  });\n  shape(value.fx,['eq','compressor','saturation','chorus','delay','reverb'],'fx');\n  const fx={eq:bool(value.fx.eq,'eq'),compressor:bool(value.fx.compressor,'compressor'),saturation:bool(value.fx.saturation,'saturation'),chorus:bool(value.fx.chorus,'chorus'),delay:bool(value.fx.delay,'delay'),reverb:bool(value.fx.reverb,'reverb')};\n  shape(value.playback,['mode','gainDb','stereo'],'playback');\n  if(value.playback.mode!=='On event (once)')throw new TypeError('unsupported playback mode');\n  return {schemaVersion:'SoundPatch/v1',seed,name:label(value.name,'name',80),style:choice(value.style,['soft','crisp','warm','mechanical','nocturnal'] as const,'style'),character:label(value.character,'character',100),\n    duration,intensity:num(value.intensity,0,100,'intensity'),baseFreq,chords,osc1,osc2,osc3,noise:num(value.noise,0,1,'noise'),adsr,filter,\n    lfo1:lfo(value.lfo1,'lfo1'),lfo2:lfo(value.lfo2,'lfo2'),env2,modMatrix,fx,...(ordered?{fxOrder:[...(value.fxOrder as FxKey[])]}:{}),...(parameterized?{fxParameters:validateFxParameters(value.fxParameters)}:{}),\n    playback:{mode:'On event (once)',gainDb:num(value.playback.gainDb,-24,6,'gainDb'),stereo:choice(value.playback.stereo,['Mono','Stereo'] as const,'stereo')}};\n}\nexport function createSoundPatch(overrides:Partial<SoundPatch>={}):SoundPatch {\n  if(!own(overrides))throw new TypeError('overrides must be an object');\n  const nested=['osc1','osc2','osc3','adsr','filter','lfo1','lfo2','env2','fx','playback'] as const;\n  const draft:Record<string,unknown>={...DEFAULT,...overrides};\n  for(const key of nested)if(Object.prototype.hasOwnProperty.call(overrides,key) && own(overrides[key]))draft[key]={...DEFAULT[key],...overrides[key]};\n  return validateSoundPatch(draft);\n}\nexport function validateSoundTheme(value:unknown):SoundTheme {\n  shape(value,['schemaVersion','engineVersion','name','sampleRate','masterGain','events'],'theme');\n  if(value.schemaVersion!=='SoundTheme/v1'||value.engineVersion!=='sound-studio-dsp/v1')throw new TypeError('theme version');\n  shape(value.events,SOUND_EVENTS,'events');\n  const events={} as Record<SoundEvent,SoundPatch>;\n  for(const event of SOUND_EVENTS)events[event]=validateSoundPatch(value.events[event]);\n  return {schemaVersion:'SoundTheme/v1',engineVersion:'sound-studio-dsp/v1',name:label(value.name,'theme name',80),sampleRate:(()=>{if(value.sampleRate!==44100&&value.sampleRate!==48000&&value.sampleRate!==96000)throw new RangeError('sample rate');return value.sampleRate;})(),\n    masterGain:num(value.masterGain,0,1.5,'masterGain'),events};\n}\n\nexport type SoundRouting = {mode:'legacy-parallel'|'ordered';nodes:Array<{id:string;label:string;kind:string}>;edges:Array<{from:string;to:string;label?:string;kind:'audio'|'modulation'}>};\n/** Aggregate per-chord voices and wet/dry stage internals; edges represent actual audio and modulation paths, not editable wiring. */\nexport function describeSoundRouting(patch:SoundPatch):SoundRouting {\n  const p=validateSoundPatch(patch),mode=p.fxOrder?'ordered':'legacy-parallel';\n  const nodes:SoundRouting['nodes']=[],edges:SoundRouting['edges']=[];\n  const node=(id:string,label:string,kind:string)=>nodes.push({id,label,kind});\n  const audio=(from:string,to:string,label?:string)=>edges.push({from,to,...(label?{label}:{}),kind:'audio'});\n  const mod=(from:string,to:string,label:string)=>edges.push({from,to,label,kind:'modulation'});\n  node('oscillators','Oscillators / noise (per chord voice)','source');\n  node('drive','Voice drive','shaper');node('filter','Voice filter','filter');\n  node('pan','Stereo pan / mono pass-through','pan');node('envelope','ADSR envelope, peak / playback gain','gain');node('voice','Summed chord voices','mix');\n  for(const [from,to] of [['oscillators','drive'],['drive','filter'],['filter','pan'],['pan','envelope'],['envelope','voice']])audio(from,to);\n  for(const key of FX_ORDER)node(key,`${key[0].toUpperCase()+key.slice(1)} (${p.fx[key]?'enabled':'bypassed'})`,key==='chorus'||key==='delay'||key==='reverb'?'wet/dry effect':'insert');\n  if(mode==='ordered'){\n    let previous='voice';\n    for(const key of p.fxOrder!){if(!p.fx[key])continue;audio(previous,key,['chorus','delay','reverb'].includes(key)?'dry + wet stage':'insert');previous=key;}\n    audio(previous,'output-gain');\n  }else{\n    let previous='voice';\n    for(const key of FX_ORDER.slice(0,3)){if(!p.fx[key])continue;audio(previous,key);previous=key;}\n    node('sum','Dry + parallel effect sends','mix');audio(previous,'sum','dry');\n    for(const key of FX_ORDER.slice(3)){if(!p.fx[key])continue;audio(previous,key,'send');audio(key,'sum','wet');}\n    audio('sum','output-gain');\n  }\n  node('output-gain','Master output gain','gain');node('limiter','Always-on output ceiling','limiter');node('destination','Stereo output','output');\n  audio('output-gain','limiter');audio('limiter','destination');\n  node('lfo1',`LFO 1 (${p.lfo1.enabled&&p.lfo1.depth?'active':'inactive'})`,'modulator');\n  node('lfo2',`LFO 2 (${p.lfo2.enabled&&p.lfo2.depth?'active':'inactive'})`,'modulator');\n  node('env1','Env 1 (ADSR) matrix source','modulator');node('velocity','Velocity (intensity) matrix source','modulator');\n  node('osc1-level','Osc 1 level','parameter');node('osc2-pitch','Osc 2 pitch','parameter');node('filter-cutoff','Filter cutoff','parameter');node('filter-resonance','Filter resonance','parameter');node('pan-control','Stereo pan','parameter');\n  if(p.lfo1.enabled&&p.lfo1.depth)mod('lfo1','filter-cutoff','direct \xD7160 cents');\n  const pitchAvailable=p.osc2.enabled&&p.osc2.vol>0,panAvailable=p.playback.stereo==='Stereo';\n  if(p.lfo2.enabled&&p.lfo2.depth&&pitchAvailable)mod('lfo2','osc2-pitch','direct \xD740 cents');\n  const sourceIds={'LFO 1':'lfo1','LFO 2':'lfo2','Env 1 (ADSR)':'env1','Velocity':'velocity'} as const;\n  const destIds={'Filter Cutoff':'filter-cutoff','Osc 1 Level':'osc1-level','Pan':'pan-control','Filter Resonance':'filter-resonance','Osc 2 Pitch':'osc2-pitch'} as const;\n  const scales={'Filter Cutoff':720,'Osc 1 Level':0.35,'Pan':0.32,'Filter Resonance':1.8,'Osc 2 Pitch':200} as const;\n  for(const row of p.modMatrix){\n    if(!row.amount||(row.dest==='Pan'&&!panAvailable)||(row.dest==='Osc 2 Pitch'&&!pitchAvailable))continue;\n    if(row.source==='LFO 1'&&(!p.lfo1.enabled||!p.lfo1.depth))continue;\n    if(row.source==='LFO 2'&&(!p.lfo2.enabled||!p.lfo2.depth))continue;\n    mod(sourceIds[row.source],destIds[row.dest],`matrix ${Number((row.amount*scales[row.dest]).toFixed(6))}`);\n  }\n  return {mode,nodes,edges};\n}\n\nfunction random(seed:number):()=>number {\n  let x=(seed^0xa341316c)>>>0;\n  return ()=>{x^=x<<13;x^=x>>>17;x^=x<<5;return (x>>>0)/4294967296;};\n}\nfunction envelope(param:AudioParam,t:number,p:SoundPatch):void {\n  const a=p.adsr.a/1000,d=p.adsr.d/1000,r=p.adsr.r/1000,hold=p.duration-a-d-r;\n  param.setValueAtTime(0,t);\n  if(a) param.linearRampToValueAtTime(1,t+a);else param.setValueAtTime(1,t);\n  if(d) param.linearRampToValueAtTime(p.adsr.s,t+a+d);else param.setValueAtTime(p.adsr.s,t+a);\n  param.setValueAtTime(p.adsr.s,t+a+d+Math.max(0,hold));\n  if(r) param.linearRampToValueAtTime(0,t+p.duration);else param.setValueAtTime(0,t+p.duration);\n}\nfunction modulation(ctx:OfflineAudioContext,p:SoundPatch,t:number,end:number,target:AudioParam,source:AudioNode,amount:number):void {\n  const scaling=ctx.createGain();scaling.gain.value=amount;source.connect(scaling);scaling.connect(target);\n}\nfunction makeLfo(ctx:OfflineAudioContext,cfg:Lfo,t:number,end:number):AudioNode|null {\n  if(!cfg.enabled||!cfg.depth)return null;\n  const o=ctx.createOscillator(),g=ctx.createGain();o.type=cfg.type;o.frequency.value=cfg.rate;g.gain.value=cfg.depth;o.connect(g);o.start(t);o.stop(end);return g;\n}\nfunction impulse(ctx:OfflineAudioContext,seed:number,stereo:boolean,decay:number):AudioBuffer {\n  const len=Math.ceil(decay*ctx.sampleRate),b=ctx.createBuffer(stereo?2:1,len,ctx.sampleRate),rand=random(seed^0x72d953);\n  for(let c=0;c<b.numberOfChannels;c++){const data=b.getChannelData(c);for(let i=0;i<len;i++){\n    const x=i/len;data[i]=(rand()*2-1)*(1-x)**2.5*0.12;\n  }}return b;\n}\n/** Includes the dry body, 24ms/chord stagger and bounded effect tails. No audible context is created. */\nexport async function renderSoundPatch(patch:SoundPatch,options:{sampleRate?:number;masterGain?:number}={}):Promise<AudioBuffer> {\n  const p=validateSoundPatch(patch);\n  if(!own(options)||Object.keys(options).some(k=>k!=='sampleRate'&&k!=='masterGain'))throw new TypeError('render options');\n  const rate=options.sampleRate===undefined?48000:options.sampleRate;\n  if(rate!==44100&&rate!==48000&&rate!==96000)throw new RangeError('sampleRate unsupported');\n  const masterGain=options.masterGain===undefined?1:num(options.masterGain,0,1.5,'masterGain');\n  const params=getFxParameters(p);\n  // Preserve historical allocation exactly when absent. Parameterized delay reserves\n  // repeats down to -80dB feedback amplitude plus 35ms; max 26 repeats at feedback .7.\n  const delayTail=Math.max(1.16,params.delay.time*(params.delay.feedback===0?1:Math.ceil(Math.log(0.0001)/Math.log(params.delay.feedback)))+0.035);\n  const reverbTail=Math.max(0.68,params.reverb.decay+0.06);\n  const tail=p.fxParameters\n    ?(p.fxOrder?0.035+(p.fx.chorus?0.07:0)+(p.fx.delay?delayTail:0)+(p.fx.reverb?reverbTail:0):Math.max(0.035,p.fx.chorus?0.07:0,p.fx.delay?delayTail:0,p.fx.reverb?reverbTail:0))\n    :(p.fxOrder?(0.035+(p.fx.chorus?0.07:0)+(p.fx.delay?1.16:0)+(p.fx.reverb?0.68:0)):(p.fx.delay?1.16:p.fx.reverb?0.68:p.fx.chorus?0.07:0.035));\n  const seconds=p.duration+(p.chords.length-1)*0.024+tail;\n  const ctx=new OfflineAudioContext(2,Math.ceil(seconds*rate),rate);\n  const voice=ctx.createGain();let current:AudioNode=voice;\n  let sum:GainNode;\n  if(p.fxOrder){\n    for(const key of p.fxOrder){\n      if(!p.fx[key])continue;\n      if(key==='eq'){const eq=ctx.createBiquadFilter();eq.type='peaking';eq.frequency.value=params.eq.frequency;eq.Q.value=params.eq.q;eq.gain.value=params.eq.gainDb;current.connect(eq);current=eq;}\n      else if(key==='saturation'){const shaper=ctx.createWaveShaper(),curve=new Float32Array(1025);\n        const k=1.5+params.saturation.drive*0.55;for(let i=0;i<curve.length;i++){const x=i/512-1;curve[i]=Math.tanh(k*x)/Math.tanh(k);}\n        shaper.curve=curve;current.connect(shaper);current=shaper;\n      }else if(key==='compressor'){const comp=ctx.createDynamicsCompressor();comp.threshold.value=params.compressor.thresholdDb;comp.knee.value=params.compressor.kneeDb;comp.ratio.value=params.compressor.ratio;comp.attack.value=params.compressor.attack;comp.release.value=params.compressor.release;current.connect(comp);current=comp;}\n      else{\n        const stage=ctx.createGain();current.connect(stage); // The direct path remains in the serial stage.\n        if(key==='chorus'){const delay=ctx.createDelay(0.06),wet=ctx.createGain(),osc=ctx.createOscillator(),mod=ctx.createGain();\n          delay.delayTime.value=0.018;wet.gain.value=params.chorus.mix;osc.frequency.value=params.chorus.rate;mod.gain.value=params.chorus.depth;\n          osc.connect(mod);mod.connect(delay.delayTime);osc.start(0);osc.stop(seconds);current.connect(delay);delay.connect(wet);wet.connect(stage);\n        }else if(key==='delay'){const d=ctx.createDelay(p.fxParameters?1:0.2),feedback=ctx.createGain(),wet=ctx.createGain();d.delayTime.value=params.delay.time;feedback.gain.value=params.delay.feedback;wet.gain.value=params.delay.mix;\n          current.connect(d);d.connect(feedback);feedback.connect(d);d.connect(wet);wet.connect(stage);\n        }else{const conv=ctx.createConvolver(),wet=ctx.createGain();conv.normalize=false;conv.buffer=impulse(ctx,p.seed,p.playback.stereo==='Stereo',params.reverb.decay);wet.gain.value=params.reverb.mix;current.connect(conv);conv.connect(wet);wet.connect(stage);}\n        current=stage;\n      }\n    }\n    sum=ctx.createGain();current.connect(sum);\n  }else{\n  if(p.fx.eq){const eq=ctx.createBiquadFilter();eq.type='peaking';eq.frequency.value=params.eq.frequency;eq.Q.value=params.eq.q;eq.gain.value=params.eq.gainDb;current.connect(eq);current=eq;}\n  if(p.fx.saturation){const shaper=ctx.createWaveShaper(),curve=new Float32Array(1025);\n    const k=1.5+params.saturation.drive*0.55;for(let i=0;i<curve.length;i++){const x=i/512-1;curve[i]=Math.tanh(k*x)/Math.tanh(k);}\n    shaper.curve=curve;current.connect(shaper);current=shaper;\n  }\n  if(p.fx.compressor){const comp=ctx.createDynamicsCompressor();comp.threshold.value=params.compressor.thresholdDb;comp.knee.value=params.compressor.kneeDb;comp.ratio.value=params.compressor.ratio;comp.attack.value=params.compressor.attack;comp.release.value=params.compressor.release;current.connect(comp);current=comp;}\n  // Send effects are additive after the insert chain. Every send terminates at the same limiter.\n  sum=ctx.createGain();current.connect(sum);\n  if(p.fx.chorus){const delay=ctx.createDelay(0.06),wet=ctx.createGain(),osc=ctx.createOscillator(),mod=ctx.createGain();\n    delay.delayTime.value=0.018;wet.gain.value=params.chorus.mix;osc.frequency.value=params.chorus.rate;mod.gain.value=params.chorus.depth;\n    osc.connect(mod);mod.connect(delay.delayTime);osc.start(0);osc.stop(seconds);current.connect(delay);delay.connect(wet);wet.connect(sum);\n  }\n  if(p.fx.delay){const d=ctx.createDelay(p.fxParameters?1:0.2),feedback=ctx.createGain(),wet=ctx.createGain();d.delayTime.value=params.delay.time;feedback.gain.value=params.delay.feedback;wet.gain.value=params.delay.mix;\n    current.connect(d);d.connect(feedback);feedback.connect(d);d.connect(wet);wet.connect(sum);\n  }\n  if(p.fx.reverb){const conv=ctx.createConvolver(),wet=ctx.createGain();conv.normalize=false;conv.buffer=impulse(ctx,p.seed,p.playback.stereo==='Stereo',params.reverb.decay);wet.gain.value=params.reverb.mix;current.connect(conv);conv.connect(wet);wet.connect(sum);}\n  }\n  // Always-on output ceiling; conservative gain ensures ordinary patches stay below it.\n  const limiter=ctx.createWaveShaper(),ceiling=new Float32Array(1025);for(let i=0;i<ceiling.length;i++)ceiling[i]=Math.tanh((i/512-1)*1.05)/Math.tanh(1.05);\n  limiter.curve=ceiling;const level=ctx.createGain();level.gain.value=masterGain;sum.connect(level);level.connect(limiter);limiter.connect(ctx.destination);\n  const rand=random(p.seed);\n  p.chords.forEach((semi,idx)=>{\n    const t=idx*0.024,end=t+p.duration,note=p.baseFreq*2**(semi/12);\n    const filter=ctx.createBiquadFilter();filter.type=p.filter.type;filter.frequency.value=p.filter.cutoff;filter.Q.value=p.filter.res;\n    const drive=ctx.createWaveShaper(),driveCurve=new Float32Array(513);const driveAmount=1+p.filter.drive*0.075;\n    for(let i=0;i<driveCurve.length;i++)driveCurve[i]=Math.tanh((i/256-1)*driveAmount)/driveAmount;\n    drive.curve=driveCurve;drive.connect(filter);\n    const env=ctx.createGain();env.gain.value=0;const peak=ctx.createGain();peak.gain.value=(0.11*p.intensity/100*10**(p.playback.gainDb/20))/Math.sqrt(p.chords.length);\n    envelope(env.gain,t,p);\n    let panParam:AudioParam|undefined;\n    if(p.playback.stereo==='Stereo'){\n      const pan=ctx.createStereoPanner();pan.pan.value=Math.max(-0.65,Math.min(0.65,(idx-(p.chords.length-1)/2)*0.24));filter.connect(pan);pan.connect(env);\n      panParam=pan.pan;\n    }else filter.connect(env);\n    env.connect(peak);peak.connect(voice);\n    const osc1Gain=ctx.createGain(),osc2Gain=ctx.createGain();osc1Gain.gain.value=p.osc1.vol;osc2Gain.gain.value=p.osc2.vol;\n    let pitchParam:AudioParam|undefined;const pitchParams:AudioParam[]=[];\n    for(const [i,cfg] of ([p.osc1,p.osc2,p.osc3] as const).entries())if(cfg.enabled&&cfg.vol){\n      const osc=ctx.createOscillator();osc.type=cfg.type;osc.frequency.value=note*2**(cfg.tune/12);\n      const gain=i===0?osc1Gain:i===1?osc2Gain:ctx.createGain();if(i===2)gain.gain.value=cfg.vol;\n      osc.detune.value=cfg.detune??0;\n      const spread=cfg.spread??0;\n      // Legacy zero-width patches retain their exact synthesis graph and PCM.\n      let destination:AudioNode=gain;\n      if(spread){const norm=ctx.createGain();norm.gain.value=.5;norm.connect(gain);destination=norm;const twin=ctx.createOscillator();twin.type=cfg.type;twin.frequency.value=osc.frequency.value;twin.detune.value=(cfg.detune??0)+spread;osc.detune.value-=spread;twin.connect(norm);twin.start(t);twin.stop(end);if(i===1)pitchParams.push(twin.detune);}\n      osc.connect(destination);\n      if(p.playback.stereo==='Stereo'&&(cfg.pan??0)!==0){const pan=ctx.createStereoPanner();pan.pan.value=cfg.pan!;gain.connect(pan);pan.connect(drive);}else gain.connect(drive);\n      osc.start(t);osc.stop(end);\n      if(i===1){pitchParam=osc.detune;pitchParams.push(osc.detune);}\n    }\n    if(p.noise){const buffer=ctx.createBuffer(1,Math.max(1,Math.ceil(Math.min(0.08,p.duration)*rate)),rate),data=buffer.getChannelData(0);\n      for(let i=0;i<data.length;i++)data[i]=rand()*2-1;\n      const src=ctx.createBufferSource(),gain=ctx.createGain();src.buffer=buffer;gain.gain.value=p.noise*0.35;src.connect(gain);gain.connect(drive);src.start(t);\n    }\n    function wireMatrix():void {\n      const routes=p.modMatrix.filter(row=>row.amount!==0 && (row.dest!=='Pan'||panParam) && (row.dest!=='Osc 2 Pitch'||pitchParam));\n      if(!routes.length)return;\n      let l1:AudioNode|null=null,l2:AudioNode|null=null,e1:ConstantSourceNode|null=null,v:ConstantSourceNode|null=null;\n      for(const row of routes){let source:AudioNode|null=null;\n        if(row.source==='LFO 1')source=l1??(l1=makeLfo(ctx,p.lfo1,t,end));\n        if(row.source==='LFO 2')source=l2??(l2=makeLfo(ctx,p.lfo2,t,end));\n        if(row.source==='Env 1 (ADSR)'){if(!e1){e1=ctx.createConstantSource();envelope(e1.offset,t,p);e1.start(t);e1.stop(end);}source=e1;}\n        if(row.source==='Velocity'){if(!v){v=ctx.createConstantSource();v.offset.value=p.intensity/100;v.start(t);v.stop(end);}source=v;}\n        if(!source)continue;\n        const target=row.dest==='Filter Cutoff'?filter.detune:row.dest==='Filter Resonance'?filter.Q:row.dest==='Osc 1 Level'?osc1Gain.gain:row.dest==='Pan'?panParam:pitchParam;\n        if(!target)continue;\n        const amount=row.amount*(row.dest==='Filter Cutoff'?720:row.dest==='Filter Resonance'?1.8:row.dest==='Osc 2 Pitch'?200:row.dest==='Pan'?0.32:0.35);\n        if(row.dest==='Osc 2 Pitch'){for(const param of pitchParams)modulation(ctx,p,t,end,param,source,amount);}else modulation(ctx,p,t,end,target,source,amount);\n      }\n    }\n    // Direct modulation keeps both LFO controls audible even with an empty matrix.\n    const baseLfo1=makeLfo(ctx,p.lfo1,t,end);\n    if(baseLfo1)modulation(ctx,p,t,end,filter.detune,baseLfo1,160);\n    const baseLfo2=makeLfo(ctx,p.lfo2,t,end);\n    if(baseLfo2)for(const param of pitchParams)modulation(ctx,p,t,end,param,baseLfo2,40);\n    wireMatrix();\n  });\n  return ctx.startRendering();\n}\n\n/** Analysis is derived only from the supplied PCM; 32 time windows and a direct 256-point DFT. */\nexport function analyzePcm(buffer:AudioBuffer,bins=64):{waveform:number[];spectrum:number[];spectrogram:number[][];peakDb:number|null;rmsDb:number|null;duration:number;sampleRate:number} {\n  if(!Number.isInteger(bins)||bins<4||bins>256)throw new RangeError('bins');\n  if(!buffer||!Number.isInteger(buffer.length)||buffer.length<1||buffer.numberOfChannels<1||buffer.numberOfChannels>2)throw new TypeError('audio buffer');\n  const channels=Array.from({length:buffer.numberOfChannels},(_,i)=>buffer.getChannelData(i));\n  const n=buffer.length,waveform=Array(bins).fill(0),spectrum=Array(bins).fill(0),spectrogram:number[][]=[];\n  let peak=0,energy=0;\n  for(let i=0;i<n;i++){let mono=0;for(const c of channels){const x=c[i];if(!Number.isFinite(x))throw new TypeError('non-finite PCM');peak=Math.max(peak,Math.abs(x));energy+=x*x;mono+=x;}waveform[Math.min(bins-1,Math.floor(i*bins/n))]=Math.max(waveform[Math.min(bins-1,Math.floor(i*bins/n))],Math.abs(mono/channels.length));}\n  const frames=32,size=256;\n  for(let frame=0;frame<frames;frame++){const magnitudes=Array(bins).fill(0),start=Math.floor(frame*Math.max(0,n-size)/Math.max(1,frames-1));\n    for(let k=0;k<bins;k++){let re=0,im=0;const freq=k*128/bins;\n      for(let i=0;i<size;i++){const idx=start+i,x=idx<n?channels.reduce((sum,c)=>sum+c[idx],0)/channels.length:0;\n        const window=0.5-0.5*Math.cos(2*Math.PI*i/(size-1)),phase=2*Math.PI*freq*i/size;\n        re+=x*window*Math.cos(phase);im-=x*window*Math.sin(phase);\n      }magnitudes[k]=Math.sqrt(re*re+im*im)/size;\n      spectrum[k]+=magnitudes[k]/frames;\n    }spectrogram.push(magnitudes);\n  }\n  const rms=Math.sqrt(energy/(n*channels.length));\n  return {waveform,spectrum,spectrogram,peakDb:peak?20*Math.log10(peak):null,rmsDb:rms?20*Math.log10(rms):null,duration:n/buffer.sampleRate,sampleRate:buffer.sampleRate};\n}\nexport function encodeWav(buffer:AudioBuffer):Uint8Array {\n  if(!buffer||buffer.numberOfChannels!==2||!Number.isInteger(buffer.length)||buffer.length<1||![44100,48000,96000].includes(buffer.sampleRate))throw new TypeError('expected stereo AudioBuffer');\n  const size=buffer.length*8,out=new Uint8Array(44+size),v=new DataView(out.buffer);\n  const text=(offset:number,s:string)=>{for(let i=0;i<s.length;i++)v.setUint8(offset+i,s.charCodeAt(i));};\n  text(0,'RIFF');v.setUint32(4,36+size,true);text(8,'WAVE');text(12,'fmt ');v.setUint32(16,16,true);\n  v.setUint16(20,3,true);v.setUint16(22,2,true);v.setUint32(24,buffer.sampleRate,true);v.setUint32(28,buffer.sampleRate*8,true);\n  v.setUint16(32,8,true);v.setUint16(34,32,true);text(36,'data');v.setUint32(40,size,true);\n  const left=buffer.getChannelData(0),right=buffer.getChannelData(1);\n  for(let i=0;i<buffer.length;i++){if(!Number.isFinite(left[i])||!Number.isFinite(right[i]))throw new TypeError('non-finite PCM');v.setFloat32(44+i*8,left[i],true);v.setFloat32(48+i*8,right[i],true);}\n  return out;\n}\n\n/** Explicit consent and shared canonical PCM for audition, analysis and export. */\nexport type StudioSnapshot = Readonly<{enabled:boolean;muted:boolean;contextState:'uninitialized'|AudioContextState;activeVoices:number;lastEvent:SoundEvent|null;error:string|null;energy:number}>;\n/** Ephemeral latest-started audition only. Times are AudioContext seconds, never UI wall time.\n * renderIdentity is the complete canonical render input key, not a persisted patch ID.\n * It may describe an old patch still sounding after an edit; consumers MUST match analysis identity.\n */\nexport type StudioPlaybackPosition = Readonly<{voiceId:number;event:SoundEvent;renderIdentity:string;startedAt:number;contextTime:number;renderedDuration:number;playing:true}>;\ntype RenderEntry = {key:string;buffer:Promise<AudioBuffer>;analysis?:Promise<ReturnType<typeof analyzePcm>>};\nexport class SoundStudioEngine {\n  private theme:SoundTheme;private ctx:AudioContext|null=null;private muted=true;private disposed=false;\n  private sources=new Set<AudioBufferSourceNode>();private cache=new Map<SoundEvent,RenderEntry>();\n  private listeners=new Set<()=>void>();private snapshot:StudioSnapshot=Object.freeze({enabled:false,muted:true,contextState:'uninitialized',activeVoices:0,lastEvent:null,error:null,energy:0});\n  private generation=0;private eventVersions=new Map<SoundEvent,number>();private enablePending:Promise<void>|null=null;\n  private consentGranted=false;\n  private analyser:AnalyserNode|null=null;private samples:Float32Array<ArrayBuffer>|null=null;\n  private stereoMeters:AnalyserNode[]=[];private stereoSplitter:ChannelSplitterNode|null=null;\n  private frame:number|null=null;private lastEnergyPublish=0;private cssTarget?:HTMLElement;\n  private triggerTimes:number[]=[];\n  private voiceSerial=0;\n  private latestPlayback:Omit<StudioPlaybackPosition,'contextTime'>|null=null;\n  private analysisIdentities=new WeakMap<object,string>();\n  constructor(theme:SoundTheme){this.theme=validateSoundTheme(theme);}\n  getSnapshot=():StudioSnapshot=>this.snapshot;\n  /** Live output only; reading never opens a device or grants consent. */\n  getLiveFrame=()=>{\n    const wave=new Float32Array(256),peaks=[0,0];\n    if(this.playable()&&this.sources.size&&this.analyser){this.analyser.getFloatTimeDomainData(wave);const channel=new Float32Array(256);for(let i=0;i<2;i++){(this.stereoMeters[i]??this.analyser).getFloatTimeDomainData(channel);for(const v of channel)peaks[i]=Math.max(peaks[i],Math.abs(v));}}\n    return {wave,peaks};\n  };\n  /** Read without publishing a new StudioSnapshot on each clock tick. Null means no current voice. */\n  getPlaybackPosition=():StudioPlaybackPosition|null=>{\n    const latest=this.latestPlayback,ctx=this.ctx;\n    if(!latest)return null;\n    if(!this.playable()||!ctx||ctx.currentTime>=latest.startedAt+latest.renderedDuration){this.latestPlayback=null;return null;}\n    return Object.freeze({...latest,contextTime:ctx.currentTime});\n  };\n  getRenderIdentity(event:SoundEvent):string {\n    if(!SOUND_EVENTS.includes(event))throw new TypeError('event');\n    return this.renderKey(event);\n  }\n  /** Only analyses actually returned by this engine have a trusted identity. */\n  getAnalysisIdentity(analysis:object):string|null {return this.analysisIdentities.get(analysis)??null;}\n  subscribe=(listener:()=>void):(()=>void)=>{if(this.disposed)return()=>{};this.listeners.add(listener);return()=>this.listeners.delete(listener);};\n  private update(fields:Partial<StudioSnapshot>):void{\n    const next={...this.snapshot,...fields};\n    if((Object.keys(fields) as (keyof StudioSnapshot)[]).every(key=>this.snapshot[key]===next[key]))return;\n    this.snapshot=Object.freeze(next);\n    for(const listener of this.listeners)listener();\n  }\n  private state():StudioSnapshot['contextState']{return this.ctx?.state??'uninitialized';}\n  private playable():boolean{return !this.disposed&&this.consentGranted&&!this.muted&&this.ctx?.state==='running';}\n  private renderKey(event:SoundEvent,theme=this.theme):string{\n    const {name,style,character,...dsp}=theme.events[event];\n    return JSON.stringify([theme.sampleRate,theme.masterGain,dsp]);\n  }\n  private invalidate(event:SoundEvent):void{\n    this.cache.delete(event);\n    this.eventVersions.set(event,(this.eventVersions.get(event)??0)+1);\n  }\n  getBuffer(event:SoundEvent):Promise<AudioBuffer>{\n    if(!SOUND_EVENTS.includes(event))throw new TypeError('event');\n    if(this.disposed)return Promise.reject(new Error('engine disposed'));\n    const key=this.renderKey(event),cached=this.cache.get(event);\n    if(cached?.key===key){this.cache.delete(event);this.cache.set(event,cached);return cached.buffer;}\n    const theme=this.theme;\n    const entry:RenderEntry={key,buffer:Promise.resolve().then(()=>renderSoundPatch(theme.events[event],{sampleRate:theme.sampleRate,masterGain:theme.masterGain}))};\n    this.cache.set(event,entry);\n    while(this.cache.size>6)this.cache.delete(this.cache.keys().next().value!);\n    // Rejection must not poison a later request; completion cannot replace a newer entry.\n    void entry.buffer.then(()=>{},()=>{if(this.cache.get(event)===entry)this.cache.delete(event);});\n    return entry.buffer;\n  }\n  getAnalysis(event:SoundEvent):Promise<ReturnType<typeof analyzePcm>>{\n    const buffer=this.getBuffer(event),entry=this.cache.get(event)!;\n    return entry.analysis??(entry.analysis=buffer.then(value=>{\n      const analysis=analyzePcm(value);this.analysisIdentities.set(analysis,entry.key);return analysis;\n    }).catch(error=>{\n      if(this.cache.get(event)===entry)this.cache.delete(event);\n      throw error;\n    }));\n  }\n  async enable():Promise<void>{\n    if(this.disposed)throw new Error('engine disposed');\n    if(this.enablePending)return this.enablePending;\n    const epoch=this.generation;\n    const pending=(async()=>{\n      try{\n        const ctor=globalThis.AudioContext;if(!ctor)throw new Error('WebAudio unavailable');\n        let ctx=this.ctx;\n        if(!ctx||ctx.state==='closed'){\n          ctx=new ctor({sampleRate:this.theme.sampleRate});this.ctx=ctx;this.analyser=null;\n          const created=ctx;\n          created.onstatechange=()=>{\n            if(this.disposed||this.ctx!==created)return;\n            this.update({contextState:created.state,enabled:this.consentGranted&&!this.muted&&created.state==='running'});\n            if(created.state!=='running'){this.latestPlayback=null;this.resetEnergy();}\n          };\n        }\n        if(ctx.state!=='running')await ctx.resume();\n        if(this.disposed||epoch!==this.generation)throw new Error('Audio enable cancelled');\n        if(ctx.state!=='running')throw new Error('Audio context did not resume');\n        this.consentGranted=true;this.muted=false;\n        this.update({enabled:true,muted:false,contextState:ctx.state,error:null});\n      }catch(error){\n        if(!this.disposed)this.update({enabled:false,muted:this.muted,contextState:this.state(),error:error instanceof Error?error.message:'Audio unavailable'});\n        throw error;\n      }\n    })();\n    this.enablePending=pending;\n    try{await pending;}finally{if(this.enablePending===pending)this.enablePending=null;}\n  }\n  setMuted(value:boolean):void{\n    if(this.disposed)throw new Error('engine disposed');\n    this.muted=bool(value,'muted');\n    if(value)this.stopAll();\n    this.update({muted:value,enabled:this.consentGranted&&this.ctx?.state==='running'&&!value,contextState:this.state()});\n  }\n  setTheme(value:SoundTheme):void{\n    if(this.disposed)throw new Error('engine disposed');\n    const next=validateSoundTheme(value),prior=this.theme;\n    this.theme=next;\n    for(const event of SOUND_EVENTS)if(this.renderKey(event,prior)!==this.renderKey(event,next))this.invalidate(event);\n  }\n  setEventPatch(event:SoundEvent,patch:SoundPatch):void{\n    if(this.disposed)throw new Error('engine disposed');\n    if(!SOUND_EVENTS.includes(event))throw new TypeError('event');\n    const next=validateSoundPatch(patch);\n    this.setTheme({...this.theme,events:{...this.theme.events,[event]:next}});\n  }\n  setCssTarget(target?:HTMLElement):void{\n    if(this.cssTarget===target)return;\n    this.cssTarget?.style.removeProperty('--sonic-energy');\n    if(this.disposed)return;\n    this.cssTarget=target;\n    this.writeEnergy(this.snapshot.energy);\n  }\n  private writeEnergy(value:number):void{this.cssTarget?.style.setProperty('--sonic-energy',String(value));}\n  private meter=():void=>{\n    this.frame=null;\n    if(!this.playable()||!this.sources.size||!this.analyser||!this.samples){this.resetEnergy();return;}\n    this.analyser.getFloatTimeDomainData(this.samples);\n    let power=0;for(const sample of this.samples)power+=sample*sample;\n    const energy=Math.min(1,Math.sqrt(power/this.samples.length)*4);\n    this.writeEnergy(energy);\n    const now=performance.now();\n    if(now-this.lastEnergyPublish>=100){this.lastEnergyPublish=now;this.update({energy:Math.round(energy*20)/20});}\n    if(typeof requestAnimationFrame==='function')this.frame=requestAnimationFrame(this.meter);\n  };\n  private resetEnergy():void{\n    if(this.frame!==null&&typeof cancelAnimationFrame==='function')cancelAnimationFrame(this.frame);\n    this.frame=null;this.lastEnergyPublish=0;this.writeEnergy(0);this.update({energy:0});\n  }\n  stopAll():void{\n    this.generation++;\n    this.latestPlayback=null;\n    for(const src of this.sources){src.onended=null;try{src.stop();}catch{/* already ended */}src.disconnect();}\n    this.sources.clear();this.triggerTimes=[];this.resetEnergy();this.update({activeVoices:0});\n  }\n  async trigger(event:SoundEvent):Promise<boolean>{\n    if(!SOUND_EVENTS.includes(event))throw new TypeError('event');\n    if(!this.playable())return false;\n    const ctx=this.ctx!,generation=this.generation,version=this.eventVersions.get(event)??0,renderIdentity=this.renderKey(event);\n    const now=performance.now();this.triggerTimes=this.triggerTimes.filter(t=>now-t<1000);\n    if(this.triggerTimes.length>=28||this.sources.size>=24)return false;\n    this.triggerTimes.push(now);\n    let buffer:AudioBuffer;\n    try{buffer=await this.getBuffer(event);}catch(error){\n      if(!this.disposed)this.update({error:error instanceof Error?error.message:'Audio rendering failed'});\n      return false;\n    }\n    if(!this.playable()||this.ctx!==ctx||generation!==this.generation||version!==(this.eventVersions.get(event)??0)||this.sources.size>=24)return false;\n    try{\n      if(!this.analyser&&typeof ctx.createAnalyser==='function'){\n        this.analyser=ctx.createAnalyser();this.analyser.fftSize=256;\n        this.samples=new Float32Array(this.analyser.fftSize);\n        this.analyser.connect(ctx.destination);\n        if(typeof ctx.createChannelSplitter==='function'){this.stereoSplitter=ctx.createChannelSplitter(2);this.analyser.connect(this.stereoSplitter);for(let i=0;i<2;i++){const meter=ctx.createAnalyser();meter.fftSize=256;this.stereoSplitter.connect(meter,i);this.stereoMeters.push(meter);}}\n      }\n      const source=ctx.createBufferSource();source.buffer=buffer;source.connect(this.analyser??ctx.destination);\n      this.sources.add(source);\n      const voiceId=++this.voiceSerial,startedAt=ctx.currentTime;\n      source.onended=()=>{source.disconnect();this.sources.delete(source);if(this.latestPlayback?.voiceId===voiceId)this.latestPlayback=null;this.update({activeVoices:this.sources.size});if(!this.sources.size)this.resetEnergy();};\n      source.start(startedAt);\n      this.latestPlayback=Object.freeze({voiceId,event,renderIdentity,startedAt,renderedDuration:buffer.length/buffer.sampleRate,playing:true});\n      this.update({lastEvent:event,activeVoices:this.sources.size,error:null,contextState:ctx.state});\n      if(this.analyser&&this.frame===null&&typeof requestAnimationFrame==='function')this.frame=requestAnimationFrame(this.meter);\n      return true;\n    }catch(error){\n      this.stopAll();this.update({error:error instanceof Error?error.message:'Audio scheduling failed'});\n      return false;\n    }\n  }\n  async dispose():Promise<void>{\n    if(this.disposed)return;this.disposed=true;this.muted=true;this.stopAll();\n    this.cache.clear();this.setCssTarget();this.cssTarget?.style.removeProperty('--sonic-energy');this.cssTarget=undefined;\n    this.analyser?.disconnect();this.analyser=null;this.samples=null;\n    this.stereoSplitter?.disconnect();this.stereoSplitter=null;for(const meter of this.stereoMeters)meter.disconnect();this.stereoMeters=[];\n    const ctx=this.ctx;this.ctx=null;\n    this.update({enabled:false,muted:true,contextState:'uninitialized',activeVoices:0,energy:0});\n    this.listeners.clear();if(ctx&&ctx.state!=='closed')await ctx.close();\n  }\n}\n";
+var studio_engine_default = "/* Sound Studio v1. Standalone canonical renderer: this very source is embedded in TS exports. */\nexport const SOUND_EVENTS = ['onHover','onFocus','onCommit','onToggle','onError','onBackgroundTaskComplete'] as const;\nexport type SoundEvent = typeof SOUND_EVENTS[number];\nexport const FX_ORDER = ['eq','saturation','compressor','chorus','delay','reverb'] as const;\nexport type FxKey = typeof FX_ORDER[number];\nexport type FxParameters = {\n  eq:{frequency:number;gainDb:number;q:number};saturation:{drive:number};\n  compressor:{thresholdDb:number;ratio:number;attack:number;release:number;kneeDb:number};\n  chorus:{rate:number;depth:number;mix:number};delay:{time:number;feedback:number;mix:number};reverb:{decay:number;mix:number};\n};\n/** Seconds, Hz and dB as named; mix is additive wet-send gain, not a dry/wet crossfade. */\nexport const FX_PARAMETER_LIMITS = {\n  eq:{frequency:[40,16000],gainDb:[-12,12],q:[0.1,8]},saturation:{drive:[0,10]},\n  compressor:{thresholdDb:[-60,0],ratio:[1,20],attack:[0.001,1],release:[0.01,2],kneeDb:[0,40]},\n  chorus:{rate:[0.1,5],depth:[0,0.01],mix:[0,1]},delay:{time:[0.01,1],feedback:[0,0.7],mix:[0,1]},reverb:{decay:[0.05,2],mix:[0,1]}\n} as const;\ntype Osc = {enabled:boolean;type:'sine'|'triangle'|'square'|'sawtooth';vol:number;tune:number;detune?:number;pan?:number;spread?:number};\ntype Lfo = {enabled:boolean;type:'sine'|'triangle'|'square';rate:number;depth:number};\ntype Matrix = {source:'LFO 1'|'LFO 2'|'Env 1 (ADSR)'|'Velocity';amount:number;dest:'Filter Cutoff'|'Osc 1 Level'|'Pan'|'Filter Resonance'|'Osc 2 Pitch'};\nexport type SoundPatch = {\n  schemaVersion:'SoundPatch/v1';seed:number;name:string;style:'soft'|'crisp'|'warm'|'mechanical'|'nocturnal';character:string;\n  duration:number;intensity:number;baseFreq:number;chords:number[];osc1:Osc;osc2:Osc;osc3:Osc;noise:number;\n  adsr:{a:number;d:number;s:number;r:number};filter:{type:'lowpass'|'highpass'|'bandpass'|'notch';cutoff:number;res:number;drive:number};\n  lfo1:Lfo;lfo2:Lfo;env2:{enabled:false;type:'exponential';rate:number;depth:number};modMatrix:Matrix[];\n  fx:{eq:boolean;compressor:boolean;saturation:boolean;chorus:boolean;delay:boolean;reverb:boolean};\n  fxOrder?:FxKey[];\n  fxParameters?:FxParameters;\n  playback:{mode:'On event (once)';gainDb:number;stereo:'Mono'|'Stereo'};\n};\nexport type SoundTheme = {schemaVersion:'SoundTheme/v1';engineVersion:'sound-studio-dsp/v1';name:string;sampleRate:44100|48000|96000;masterGain:number;events:Record<SoundEvent,SoundPatch>};\n\nconst DEFAULT: SoundPatch = {\n  schemaVersion:'SoundPatch/v1',seed:0x5161cafe,name:'Soft Chime',style:'soft',character:'Soft & Smooth',duration:0.36,intensity:70,baseFreq:330,chords:[0],\n  osc1:{enabled:true,type:'sine',vol:0.85,tune:0},osc2:{enabled:true,type:'triangle',vol:0.4,tune:7},osc3:{enabled:false,type:'square',vol:0.2,tune:-12},noise:0.06,\n  adsr:{a:12,d:96,s:0.72,r:210},filter:{type:'lowpass',cutoff:4200,res:1.8,drive:3},\n  lfo1:{enabled:true,type:'sine',rate:2,depth:0.38},lfo2:{enabled:true,type:'triangle',rate:0.5,depth:0.25},\n  env2:{enabled:false,type:'exponential',rate:1,depth:0.15},modMatrix:[\n    {source:'LFO 1',amount:0.38,dest:'Filter Cutoff'},\n    {source:'Env 1 (ADSR)',amount:0.72,dest:'Osc 1 Level'},\n    {source:'LFO 2',amount:-0.25,dest:'Pan'},\n    {source:'Velocity',amount:0.5,dest:'Filter Resonance'}\n  ],\n  fx:{eq:true,compressor:true,saturation:true,chorus:false,delay:true,reverb:true},\n  playback:{mode:'On event (once)',gainDb:0,stereo:'Stereo'}\n};\nconst own = (v:unknown): v is Record<string,unknown> => !!v && typeof v==='object' && !Array.isArray(v) && Object.getPrototypeOf(v)===Object.prototype;\nfunction shape(v:unknown, keys:readonly string[], label:string): asserts v is Record<string,unknown> {\n  if (!own(v) || Object.keys(v).length!==keys.length || keys.some(k=>!Object.prototype.hasOwnProperty.call(v,k))) throw new TypeError(`${label}: invalid keys`);\n}\nfunction num(v:unknown,min:number,max:number,label:string):number {\n  if (typeof v!=='number'||!Number.isFinite(v)||v<min||v>max) throw new RangeError(`${label}: out of range`);\n  return v;\n}\nfunction choice<T extends string>(v:unknown,values:readonly T[],label:string):T {\n  if (typeof v!=='string'||!values.includes(v as T)) throw new TypeError(`${label}: unsupported value`);\n  return v as T;\n}\nfunction label(v:unknown,what:string,max:number):string {\n  if (typeof v!=='string'||!v.trim()||v.length>max||/[\\u0000-\\u001f\\u007f]/.test(v)) throw new TypeError(`${what}: invalid text`);\n  return v;\n}\nfunction bool(v:unknown,what:string):boolean {if(typeof v!=='boolean')throw new TypeError(`${what}: expected boolean`);return v;}\nconst oscTypes=['sine','triangle','square','sawtooth'] as const;\nconst lfoTypes=['sine','triangle','square'] as const;\nconst sources=['LFO 1','LFO 2','Env 1 (ADSR)','Velocity'] as const;\nconst destinations=['Filter Cutoff','Osc 1 Level','Pan','Filter Resonance','Osc 2 Pitch'] as const;\nfunction oscillator(v:unknown,what:string):Osc {\n  const extra=own(v)?['detune','pan','spread'].filter(key=>Object.hasOwn(v,key)):[];\n  shape(v,['enabled','type','vol','tune',...extra],what);\n  return {enabled:bool(v.enabled,what),type:choice(v.type,oscTypes,what),vol:num(v.vol,0,1,what),tune:num(v.tune,-24,24,what),\n    ...(extra.includes('detune')?{detune:num(v.detune,-100,100,`${what}.detune`)}:{}),\n    ...(extra.includes('pan')?{pan:num(v.pan,-1,1,`${what}.pan`)}:{}),\n    ...(extra.includes('spread')?{spread:num(v.spread,0,50,`${what}.spread`)}:{})};\n}\nfunction lfo(v:unknown,what:string):Lfo {\n  shape(v,['enabled','type','rate','depth'],what);\n  return {enabled:bool(v.enabled,what),type:choice(v.type,lfoTypes,what),rate:num(v.rate,0.1,20,what),depth:num(v.depth,0,1,what)};\n}\nfunction validateFxParameters(value:unknown):FxParameters {\n  shape(value,FX_ORDER,'fxParameters');\n  const clean:Record<string,Record<string,number>>={};\n  for(const effect of FX_ORDER){\n    const limits=FX_PARAMETER_LIMITS[effect],input=value[effect];\n    shape(input,Object.keys(limits),`fxParameters.${effect}`);\n    const fields:Record<string,number>={};\n    for(const [field,[min,max]] of Object.entries(limits))fields[field]=num(input[field],min,max,`fxParameters.${effect}.${field}`);\n    clean[effect]=fields;\n  }\n  return clean as FxParameters;\n}\n/** Resolve defaults without materializing the optional field on legacy patches. Always returns a deep clone. */\nexport function getFxParameters(patch:SoundPatch):FxParameters {\n  if(Object.prototype.hasOwnProperty.call(patch,'fxParameters'))return validateFxParameters(patch.fxParameters);\n  return {eq:{frequency:1600,gainDb:3.5,q:0.8},saturation:{drive:num(patch.filter.drive,0,10,'drive')},\n    compressor:{thresholdDb:-25,ratio:3.5,attack:0.003,release:0.16,kneeDb:10},\n    chorus:{rate:0.9,depth:0.0035,mix:0.22},delay:{time:0.145,feedback:0.22,mix:0.23},reverb:{decay:0.62,mix:0.24}};\n}\nexport function validateSoundPatch(value:unknown):SoundPatch {\n  const ordered=own(value)&&Object.prototype.hasOwnProperty.call(value,'fxOrder');\n  const parameterized=own(value)&&Object.prototype.hasOwnProperty.call(value,'fxParameters');\n  shape(value,['schemaVersion','seed','name','style','character','duration','intensity','baseFreq','chords','osc1','osc2','osc3','noise','adsr','filter','lfo1','lfo2','env2','modMatrix','fx','playback',...(ordered?['fxOrder']:[]),...(parameterized?['fxParameters']:[])],'patch');\n  if(ordered&&(!Array.isArray(value.fxOrder)||value.fxOrder.length!==FX_ORDER.length||new Set(value.fxOrder).size!==FX_ORDER.length||value.fxOrder.some((key:unknown)=>!FX_ORDER.includes(key as FxKey))))throw new TypeError('fxOrder: expected complete effect permutation');\n  if(value.schemaVersion!=='SoundPatch/v1')throw new TypeError('patch version');\n  const seed=num(value.seed,0,4294967295,'seed');if(!Number.isInteger(seed))throw new TypeError('seed must be uint32');\n  const duration=num(value.duration,0.02,2.5,'duration');\n  const baseFreq=num(value.baseFreq,40,4000,'baseFreq');\n  if(!Array.isArray(value.chords)||value.chords.length<1||value.chords.length>6)throw new TypeError('chords length');\n  const chords=value.chords.map((n:unknown)=>num(n,-24,24,'chord'));\n  const osc1=oscillator(value.osc1,'osc1'),osc2=oscillator(value.osc2,'osc2'),osc3=oscillator(value.osc3,'osc3');\n  // Validate for the lowest supported sample rate. 0.42 Nyquist leaves pitch-modulation headroom.\n  for(const semi of chords)for(const osc of [osc1,osc2,osc3])if(osc.enabled && baseFreq*2**((semi+osc.tune+2+((osc.detune??0)+(osc.spread??0))/100)/12)>0.42*44100)throw new RangeError('oscillator frequency exceeds supported band');\n  shape(value.adsr,['a','d','s','r'],'adsr');\n  const adsr={a:num(value.adsr.a,0,1000,'attack'),d:num(value.adsr.d,0,1500,'decay'),s:num(value.adsr.s,0,1,'sustain'),r:num(value.adsr.r,0,2000,'release')};\n  if((adsr.a+adsr.d+adsr.r)/1000>duration+1e-6)throw new RangeError('duration shorter than ADSR');\n  shape(value.filter,['type','cutoff','res','drive'],'filter');\n  const filter={type:choice(value.filter.type,['lowpass','highpass','bandpass','notch'] as const,'filter type'),cutoff:num(value.filter.cutoff,40,16000,'cutoff'),res:num(value.filter.res,0.1,8,'resonance'),drive:num(value.filter.drive,0,10,'drive')};\n  shape(value.env2,['enabled','type','rate','depth'],'env2');\n  if(value.env2.enabled!==false||value.env2.type!=='exponential')throw new TypeError('Envelope 2 unavailable in v1');\n  const env2={enabled:false as const,type:'exponential' as const,rate:num(value.env2.rate,0,20,'env2 rate'),depth:num(value.env2.depth,0,1,'env2 depth')};\n  if(!Array.isArray(value.modMatrix)||value.modMatrix.length>12)throw new TypeError('matrix length');\n  const modMatrix=value.modMatrix.map((r:unknown):Matrix=>{\n    shape(r,['source','amount','dest'],'matrix row');\n    return {source:choice(r.source,sources,'matrix source'),amount:num(r.amount,-1,1,'matrix amount'),dest:choice(r.dest,destinations,'matrix destination')};\n  });\n  shape(value.fx,['eq','compressor','saturation','chorus','delay','reverb'],'fx');\n  const fx={eq:bool(value.fx.eq,'eq'),compressor:bool(value.fx.compressor,'compressor'),saturation:bool(value.fx.saturation,'saturation'),chorus:bool(value.fx.chorus,'chorus'),delay:bool(value.fx.delay,'delay'),reverb:bool(value.fx.reverb,'reverb')};\n  shape(value.playback,['mode','gainDb','stereo'],'playback');\n  if(value.playback.mode!=='On event (once)')throw new TypeError('unsupported playback mode');\n  return {schemaVersion:'SoundPatch/v1',seed,name:label(value.name,'name',80),style:choice(value.style,['soft','crisp','warm','mechanical','nocturnal'] as const,'style'),character:label(value.character,'character',100),\n    duration,intensity:num(value.intensity,0,100,'intensity'),baseFreq,chords,osc1,osc2,osc3,noise:num(value.noise,0,1,'noise'),adsr,filter,\n    lfo1:lfo(value.lfo1,'lfo1'),lfo2:lfo(value.lfo2,'lfo2'),env2,modMatrix,fx,...(ordered?{fxOrder:[...(value.fxOrder as FxKey[])]}:{}),...(parameterized?{fxParameters:validateFxParameters(value.fxParameters)}:{}),\n    playback:{mode:'On event (once)',gainDb:num(value.playback.gainDb,-24,6,'gainDb'),stereo:choice(value.playback.stereo,['Mono','Stereo'] as const,'stereo')}};\n}\nexport function createSoundPatch(overrides:Partial<SoundPatch>={}):SoundPatch {\n  if(!own(overrides))throw new TypeError('overrides must be an object');\n  const nested=['osc1','osc2','osc3','adsr','filter','lfo1','lfo2','env2','fx','playback'] as const;\n  const draft:Record<string,unknown>={...DEFAULT,...overrides};\n  for(const key of nested)if(Object.prototype.hasOwnProperty.call(overrides,key) && own(overrides[key]))draft[key]={...DEFAULT[key],...overrides[key]};\n  return validateSoundPatch(draft);\n}\nexport function validateSoundTheme(value:unknown):SoundTheme {\n  shape(value,['schemaVersion','engineVersion','name','sampleRate','masterGain','events'],'theme');\n  if(value.schemaVersion!=='SoundTheme/v1'||value.engineVersion!=='sound-studio-dsp/v1')throw new TypeError('theme version');\n  shape(value.events,SOUND_EVENTS,'events');\n  const events={} as Record<SoundEvent,SoundPatch>;\n  for(const event of SOUND_EVENTS)events[event]=validateSoundPatch(value.events[event]);\n  return {schemaVersion:'SoundTheme/v1',engineVersion:'sound-studio-dsp/v1',name:label(value.name,'theme name',80),sampleRate:(()=>{if(value.sampleRate!==44100&&value.sampleRate!==48000&&value.sampleRate!==96000)throw new RangeError('sample rate');return value.sampleRate;})(),\n    masterGain:num(value.masterGain,0,1.5,'masterGain'),events};\n}\n\nexport type SoundRouting = {mode:'legacy-parallel'|'ordered';nodes:Array<{id:string;label:string;kind:string}>;edges:Array<{from:string;to:string;label?:string;kind:'audio'|'modulation'}>};\n/** Aggregate per-chord voices and wet/dry stage internals; edges represent actual audio and modulation paths, not editable wiring. */\nexport function describeSoundRouting(patch:SoundPatch):SoundRouting {\n  const p=validateSoundPatch(patch),mode=p.fxOrder?'ordered':'legacy-parallel';\n  const nodes:SoundRouting['nodes']=[],edges:SoundRouting['edges']=[];\n  const node=(id:string,label:string,kind:string)=>nodes.push({id,label,kind});\n  const audio=(from:string,to:string,label?:string)=>edges.push({from,to,...(label?{label}:{}),kind:'audio'});\n  const mod=(from:string,to:string,label:string)=>edges.push({from,to,label,kind:'modulation'});\n  node('oscillators','Oscillators / noise (per chord voice)','source');\n  node('drive','Voice drive','shaper');node('filter','Voice filter','filter');\n  node('pan','Stereo pan / mono pass-through','pan');node('envelope','ADSR envelope, peak / playback gain','gain');node('voice','Summed chord voices','mix');\n  for(const [from,to] of [['oscillators','drive'],['drive','filter'],['filter','pan'],['pan','envelope'],['envelope','voice']])audio(from,to);\n  for(const key of FX_ORDER)node(key,`${key[0].toUpperCase()+key.slice(1)} (${p.fx[key]?'enabled':'bypassed'})`,key==='chorus'||key==='delay'||key==='reverb'?'wet/dry effect':'insert');\n  if(mode==='ordered'){\n    let previous='voice';\n    for(const key of p.fxOrder!){if(!p.fx[key])continue;audio(previous,key,['chorus','delay','reverb'].includes(key)?'dry + wet stage':'insert');previous=key;}\n    audio(previous,'output-gain');\n  }else{\n    let previous='voice';\n    for(const key of FX_ORDER.slice(0,3)){if(!p.fx[key])continue;audio(previous,key);previous=key;}\n    node('sum','Dry + parallel effect sends','mix');audio(previous,'sum','dry');\n    for(const key of FX_ORDER.slice(3)){if(!p.fx[key])continue;audio(previous,key,'send');audio(key,'sum','wet');}\n    audio('sum','output-gain');\n  }\n  node('output-gain','Master output gain','gain');node('limiter','Always-on output ceiling','limiter');node('destination','Stereo output','output');\n  audio('output-gain','limiter');audio('limiter','destination');\n  node('lfo1',`LFO 1 (${p.lfo1.enabled&&p.lfo1.depth?'active':'inactive'})`,'modulator');\n  node('lfo2',`LFO 2 (${p.lfo2.enabled&&p.lfo2.depth?'active':'inactive'})`,'modulator');\n  node('env1','Env 1 (ADSR) matrix source','modulator');node('velocity','Velocity (intensity) matrix source','modulator');\n  node('osc1-level','Osc 1 level','parameter');node('osc2-pitch','Osc 2 pitch','parameter');node('filter-cutoff','Filter cutoff','parameter');node('filter-resonance','Filter resonance','parameter');node('pan-control','Stereo pan','parameter');\n  if(p.lfo1.enabled&&p.lfo1.depth)mod('lfo1','filter-cutoff','direct \xC3\u2014160 cents');\n  const pitchAvailable=p.osc2.enabled&&p.osc2.vol>0,panAvailable=p.playback.stereo==='Stereo';\n  if(p.lfo2.enabled&&p.lfo2.depth&&pitchAvailable)mod('lfo2','osc2-pitch','direct \xC3\u201440 cents');\n  const sourceIds={'LFO 1':'lfo1','LFO 2':'lfo2','Env 1 (ADSR)':'env1','Velocity':'velocity'} as const;\n  const destIds={'Filter Cutoff':'filter-cutoff','Osc 1 Level':'osc1-level','Pan':'pan-control','Filter Resonance':'filter-resonance','Osc 2 Pitch':'osc2-pitch'} as const;\n  const scales={'Filter Cutoff':720,'Osc 1 Level':0.35,'Pan':0.32,'Filter Resonance':1.8,'Osc 2 Pitch':200} as const;\n  for(const row of p.modMatrix){\n    if(!row.amount||(row.dest==='Pan'&&!panAvailable)||(row.dest==='Osc 2 Pitch'&&!pitchAvailable))continue;\n    if(row.source==='LFO 1'&&(!p.lfo1.enabled||!p.lfo1.depth))continue;\n    if(row.source==='LFO 2'&&(!p.lfo2.enabled||!p.lfo2.depth))continue;\n    mod(sourceIds[row.source],destIds[row.dest],`matrix ${Number((row.amount*scales[row.dest]).toFixed(6))}`);\n  }\n  return {mode,nodes,edges};\n}\n\nfunction random(seed:number):()=>number {\n  let x=(seed^0xa341316c)>>>0;\n  return ()=>{x^=x<<13;x^=x>>>17;x^=x<<5;return (x>>>0)/4294967296;};\n}\nfunction envelope(param:AudioParam,t:number,p:SoundPatch):void {\n  const a=p.adsr.a/1000,d=p.adsr.d/1000,r=p.adsr.r/1000,hold=p.duration-a-d-r;\n  param.setValueAtTime(0,t);\n  if(a) param.linearRampToValueAtTime(1,t+a);else param.setValueAtTime(1,t);\n  if(d) param.linearRampToValueAtTime(p.adsr.s,t+a+d);else param.setValueAtTime(p.adsr.s,t+a);\n  param.setValueAtTime(p.adsr.s,t+a+d+Math.max(0,hold));\n  if(r) param.linearRampToValueAtTime(0,t+p.duration);else param.setValueAtTime(0,t+p.duration);\n}\nfunction modulation(ctx:OfflineAudioContext,p:SoundPatch,t:number,end:number,target:AudioParam,source:AudioNode,amount:number,owned:AudioNode[]):void {\n  const scaling=ctx.createGain();owned.push(scaling);scaling.gain.value=amount;source.connect(scaling);scaling.connect(target);\n}\nfunction makeLfo(ctx:OfflineAudioContext,cfg:Lfo,t:number,end:number,owned:AudioNode[]):AudioNode|null {\n  if(!cfg.enabled||!cfg.depth)return null;\n  const o=ctx.createOscillator(),g=ctx.createGain();owned.push(o,g);o.type=cfg.type;o.frequency.value=cfg.rate;g.gain.value=cfg.depth;o.connect(g);o.start(t);o.stop(end);return g;\n}\nfunction impulse(ctx:OfflineAudioContext,seed:number,stereo:boolean,decay:number):AudioBuffer {\n  const len=Math.ceil(decay*ctx.sampleRate),b=ctx.createBuffer(stereo?2:1,len,ctx.sampleRate),rand=random(seed^0x72d953);\n  for(let c=0;c<b.numberOfChannels;c++){const data=b.getChannelData(c);for(let i=0;i<len;i++){\n    const x=i/len;data[i]=(rand()*2-1)*(1-x)**2.5*0.12;\n  }}return b;\n}\n/** Includes the dry body, 24ms/chord stagger and bounded effect tails. No audible context is created. */\nexport async function renderSoundPatch(patch:SoundPatch,options:{sampleRate?:number;masterGain?:number}={}):Promise<AudioBuffer> {\n  const p=validateSoundPatch(patch);\n  if(!own(options)||Object.keys(options).some(k=>k!=='sampleRate'&&k!=='masterGain'))throw new TypeError('render options');\n  const rate=options.sampleRate===undefined?48000:options.sampleRate;\n  if(rate!==44100&&rate!==48000&&rate!==96000)throw new RangeError('sampleRate unsupported');\n  const masterGain=options.masterGain===undefined?1:num(options.masterGain,0,1.5,'masterGain');\n  const params=getFxParameters(p);\n  // Preserve historical allocation exactly when absent. Parameterized delay reserves\n  // repeats down to -80dB feedback amplitude plus 35ms; max 26 repeats at feedback .7.\n  const delayTail=Math.max(1.16,params.delay.time*(params.delay.feedback===0?1:Math.ceil(Math.log(0.0001)/Math.log(params.delay.feedback)))+0.035);\n  const reverbTail=Math.max(0.68,params.reverb.decay+0.06);\n  const tail=p.fxParameters\n    ?(p.fxOrder?0.035+(p.fx.chorus?0.07:0)+(p.fx.delay?delayTail:0)+(p.fx.reverb?reverbTail:0):Math.max(0.035,p.fx.chorus?0.07:0,p.fx.delay?delayTail:0,p.fx.reverb?reverbTail:0))\n    :(p.fxOrder?(0.035+(p.fx.chorus?0.07:0)+(p.fx.delay?1.16:0)+(p.fx.reverb?0.68:0)):(p.fx.delay?1.16:p.fx.reverb?0.68:p.fx.chorus?0.07:0.035));\n  const seconds=p.duration+(p.chords.length-1)*0.024+tail;\n  const ctx=new OfflineAudioContext(2,Math.ceil(seconds*rate),rate);\n  // Source nodes finish before their effect tails. Keep the complete graph\n  // strongly reachable until the offline promise settles; otherwise GC can\n  // reclaim tail-processing nodes during the render (including ConvolverNode).\n  const owned:AudioNode[]=[];\n  const retain=<T extends AudioNode>(node:T):T=>{owned.push(node);return node;};\n  const voice=retain(ctx.createGain());let current:AudioNode=voice;\n  let sum:GainNode;\n  if(p.fxOrder){\n    for(const key of p.fxOrder){\n      if(!p.fx[key])continue;\n      if(key==='eq'){const eq=retain(ctx.createBiquadFilter());eq.type='peaking';eq.frequency.value=params.eq.frequency;eq.Q.value=params.eq.q;eq.gain.value=params.eq.gainDb;current.connect(eq);current=eq;}\n      else if(key==='saturation'){const shaper=retain(ctx.createWaveShaper()),curve=new Float32Array(1025);\n        const k=1.5+params.saturation.drive*0.55;for(let i=0;i<curve.length;i++){const x=i/512-1;curve[i]=Math.tanh(k*x)/Math.tanh(k);}\n        shaper.curve=curve;current.connect(shaper);current=shaper;\n      }else if(key==='compressor'){const comp=retain(ctx.createDynamicsCompressor());comp.threshold.value=params.compressor.thresholdDb;comp.knee.value=params.compressor.kneeDb;comp.ratio.value=params.compressor.ratio;comp.attack.value=params.compressor.attack;comp.release.value=params.compressor.release;current.connect(comp);current=comp;}\n      else{\n        const stage=retain(ctx.createGain());current.connect(stage); // The direct path remains in the serial stage.\n        if(key==='chorus'){const delay=retain(ctx.createDelay(0.06)),wet=retain(ctx.createGain()),osc=retain(ctx.createOscillator()),mod=retain(ctx.createGain());\n          delay.delayTime.value=0.018;wet.gain.value=params.chorus.mix;osc.frequency.value=params.chorus.rate;mod.gain.value=params.chorus.depth;\n          osc.connect(mod);mod.connect(delay.delayTime);osc.start(0);osc.stop(seconds);current.connect(delay);delay.connect(wet);wet.connect(stage);\n        }else if(key==='delay'){const d=retain(ctx.createDelay(p.fxParameters?1:0.2)),feedback=retain(ctx.createGain()),wet=retain(ctx.createGain());d.delayTime.value=params.delay.time;feedback.gain.value=params.delay.feedback;wet.gain.value=params.delay.mix;\n          current.connect(d);d.connect(feedback);feedback.connect(d);d.connect(wet);wet.connect(stage);\n        }else{const conv=retain(ctx.createConvolver()),wet=retain(ctx.createGain());conv.normalize=false;conv.buffer=impulse(ctx,p.seed,p.playback.stereo==='Stereo',params.reverb.decay);wet.gain.value=params.reverb.mix;current.connect(conv);conv.connect(wet);wet.connect(stage);}\n        current=stage;\n      }\n    }\n    sum=retain(ctx.createGain());current.connect(sum);\n  }else{\n  if(p.fx.eq){const eq=retain(ctx.createBiquadFilter());eq.type='peaking';eq.frequency.value=params.eq.frequency;eq.Q.value=params.eq.q;eq.gain.value=params.eq.gainDb;current.connect(eq);current=eq;}\n  if(p.fx.saturation){const shaper=retain(ctx.createWaveShaper()),curve=new Float32Array(1025);\n    const k=1.5+params.saturation.drive*0.55;for(let i=0;i<curve.length;i++){const x=i/512-1;curve[i]=Math.tanh(k*x)/Math.tanh(k);}\n    shaper.curve=curve;current.connect(shaper);current=shaper;\n  }\n  if(p.fx.compressor){const comp=retain(ctx.createDynamicsCompressor());comp.threshold.value=params.compressor.thresholdDb;comp.knee.value=params.compressor.kneeDb;comp.ratio.value=params.compressor.ratio;comp.attack.value=params.compressor.attack;comp.release.value=params.compressor.release;current.connect(comp);current=comp;}\n  // Send effects are additive after the insert chain. Every send terminates at the same limiter.\n  sum=retain(ctx.createGain());current.connect(sum);\n  if(p.fx.chorus){const delay=retain(ctx.createDelay(0.06)),wet=retain(ctx.createGain()),osc=retain(ctx.createOscillator()),mod=retain(ctx.createGain());\n    delay.delayTime.value=0.018;wet.gain.value=params.chorus.mix;osc.frequency.value=params.chorus.rate;mod.gain.value=params.chorus.depth;\n    osc.connect(mod);mod.connect(delay.delayTime);osc.start(0);osc.stop(seconds);current.connect(delay);delay.connect(wet);wet.connect(sum);\n  }\n  if(p.fx.delay){const d=retain(ctx.createDelay(p.fxParameters?1:0.2)),feedback=retain(ctx.createGain()),wet=retain(ctx.createGain());d.delayTime.value=params.delay.time;feedback.gain.value=params.delay.feedback;wet.gain.value=params.delay.mix;\n    current.connect(d);d.connect(feedback);feedback.connect(d);d.connect(wet);wet.connect(sum);\n  }\n  if(p.fx.reverb){const conv=retain(ctx.createConvolver()),wet=retain(ctx.createGain());conv.normalize=false;conv.buffer=impulse(ctx,p.seed,p.playback.stereo==='Stereo',params.reverb.decay);wet.gain.value=params.reverb.mix;current.connect(conv);conv.connect(wet);wet.connect(sum);}\n  }\n  // Always-on output ceiling; conservative gain ensures ordinary patches stay below it.\n  const limiter=retain(ctx.createWaveShaper()),ceiling=new Float32Array(1025);for(let i=0;i<ceiling.length;i++)ceiling[i]=Math.tanh((i/512-1)*1.05)/Math.tanh(1.05);\n  limiter.curve=ceiling;const level=retain(ctx.createGain());level.gain.value=masterGain;sum.connect(level);level.connect(limiter);limiter.connect(ctx.destination);\n  const rand=random(p.seed);\n  p.chords.forEach((semi,idx)=>{\n    const t=idx*0.024,end=t+p.duration,note=p.baseFreq*2**(semi/12);\n    const filter=retain(ctx.createBiquadFilter());filter.type=p.filter.type;filter.frequency.value=p.filter.cutoff;filter.Q.value=p.filter.res;\n    const drive=retain(ctx.createWaveShaper()),driveCurve=new Float32Array(513);const driveAmount=1+p.filter.drive*0.075;\n    for(let i=0;i<driveCurve.length;i++)driveCurve[i]=Math.tanh((i/256-1)*driveAmount)/driveAmount;\n    drive.curve=driveCurve;drive.connect(filter);\n    const env=retain(ctx.createGain());env.gain.value=0;const peak=retain(ctx.createGain());peak.gain.value=(0.11*p.intensity/100*10**(p.playback.gainDb/20))/Math.sqrt(p.chords.length);\n    envelope(env.gain,t,p);\n    let panParam:AudioParam|undefined;\n    if(p.playback.stereo==='Stereo'){\n      const pan=retain(ctx.createStereoPanner());pan.pan.value=Math.max(-0.65,Math.min(0.65,(idx-(p.chords.length-1)/2)*0.24));filter.connect(pan);pan.connect(env);\n      panParam=pan.pan;\n    }else filter.connect(env);\n    env.connect(peak);peak.connect(voice);\n    const osc1Gain=retain(ctx.createGain()),osc2Gain=retain(ctx.createGain());osc1Gain.gain.value=p.osc1.vol;osc2Gain.gain.value=p.osc2.vol;\n    let pitchParam:AudioParam|undefined;const pitchParams:AudioParam[]=[];\n    for(const [i,cfg] of ([p.osc1,p.osc2,p.osc3] as const).entries())if(cfg.enabled&&cfg.vol){\n      const osc=retain(ctx.createOscillator());osc.type=cfg.type;osc.frequency.value=note*2**(cfg.tune/12);\n      const gain=i===0?osc1Gain:i===1?osc2Gain:retain(ctx.createGain());if(i===2)gain.gain.value=cfg.vol;\n      osc.detune.value=cfg.detune??0;\n      const spread=cfg.spread??0;\n      // Legacy zero-width patches retain their exact synthesis graph and PCM.\n      let destination:AudioNode=gain;\n      if(spread){const norm=retain(ctx.createGain());norm.gain.value=.5;norm.connect(gain);destination=norm;const twin=retain(ctx.createOscillator());twin.type=cfg.type;twin.frequency.value=osc.frequency.value;twin.detune.value=(cfg.detune??0)+spread;osc.detune.value-=spread;twin.connect(norm);twin.start(t);twin.stop(end);if(i===1)pitchParams.push(twin.detune);}\n      osc.connect(destination);\n      if(p.playback.stereo==='Stereo'&&(cfg.pan??0)!==0){const pan=retain(ctx.createStereoPanner());pan.pan.value=cfg.pan!;gain.connect(pan);pan.connect(drive);}else gain.connect(drive);\n      osc.start(t);osc.stop(end);\n      if(i===1){pitchParam=osc.detune;pitchParams.push(osc.detune);}\n    }\n    if(p.noise){const buffer=ctx.createBuffer(1,Math.max(1,Math.ceil(Math.min(0.08,p.duration)*rate)),rate),data=buffer.getChannelData(0);\n      for(let i=0;i<data.length;i++)data[i]=rand()*2-1;\n      const src=retain(ctx.createBufferSource()),gain=retain(ctx.createGain());src.buffer=buffer;gain.gain.value=p.noise*0.35;src.connect(gain);gain.connect(drive);src.start(t);\n    }\n    function wireMatrix():void {\n      const routes=p.modMatrix.filter(row=>row.amount!==0 && (row.dest!=='Pan'||panParam) && (row.dest!=='Osc 2 Pitch'||pitchParam));\n      if(!routes.length)return;\n      let l1:AudioNode|null=null,l2:AudioNode|null=null,e1:ConstantSourceNode|null=null,v:ConstantSourceNode|null=null;\n      for(const row of routes){let source:AudioNode|null=null;\n        if(row.source==='LFO 1')source=l1??(l1=makeLfo(ctx,p.lfo1,t,end,owned));\n        if(row.source==='LFO 2')source=l2??(l2=makeLfo(ctx,p.lfo2,t,end,owned));\n        if(row.source==='Env 1 (ADSR)'){if(!e1){e1=retain(ctx.createConstantSource());envelope(e1.offset,t,p);e1.start(t);e1.stop(end);}source=e1;}\n        if(row.source==='Velocity'){if(!v){v=retain(ctx.createConstantSource());v.offset.value=p.intensity/100;v.start(t);v.stop(end);}source=v;}\n        if(!source)continue;\n        const target=row.dest==='Filter Cutoff'?filter.detune:row.dest==='Filter Resonance'?filter.Q:row.dest==='Osc 1 Level'?osc1Gain.gain:row.dest==='Pan'?panParam:pitchParam;\n        if(!target)continue;\n        const amount=row.amount*(row.dest==='Filter Cutoff'?720:row.dest==='Filter Resonance'?1.8:row.dest==='Osc 2 Pitch'?200:row.dest==='Pan'?0.32:0.35);\n        if(row.dest==='Osc 2 Pitch'){for(const param of pitchParams)modulation(ctx,p,t,end,param,source,amount,owned);}else modulation(ctx,p,t,end,target,source,amount,owned);\n      }\n    }\n    // Direct modulation keeps both LFO controls audible even with an empty matrix.\n    const baseLfo1=makeLfo(ctx,p.lfo1,t,end,owned);\n    if(baseLfo1)modulation(ctx,p,t,end,filter.detune,baseLfo1,160,owned);\n    const baseLfo2=makeLfo(ctx,p.lfo2,t,end,owned);\n    if(baseLfo2)for(const param of pitchParams)modulation(ctx,p,t,end,param,baseLfo2,40,owned);\n    wireMatrix();\n  });\n  try{return await ctx.startRendering();}\n  finally{for(const node of owned)try{node.disconnect();}catch{/* Preserve the render outcome if a context is already torn down. */}}\n}\n\n/** Analysis is derived only from the supplied PCM; 32 time windows and a direct 256-point DFT. */\nexport function analyzePcm(buffer:AudioBuffer,bins=64):{waveform:number[];spectrum:number[];spectrogram:number[][];peakDb:number|null;rmsDb:number|null;duration:number;sampleRate:number} {\n  if(!Number.isInteger(bins)||bins<4||bins>256)throw new RangeError('bins');\n  if(!buffer||!Number.isInteger(buffer.length)||buffer.length<1||buffer.numberOfChannels<1||buffer.numberOfChannels>2)throw new TypeError('audio buffer');\n  const channels=Array.from({length:buffer.numberOfChannels},(_,i)=>buffer.getChannelData(i));\n  const n=buffer.length,waveform=Array(bins).fill(0),spectrum=Array(bins).fill(0),spectrogram:number[][]=[];\n  let peak=0,energy=0;\n  for(let i=0;i<n;i++){let mono=0;for(const c of channels){const x=c[i];if(!Number.isFinite(x))throw new TypeError('non-finite PCM');peak=Math.max(peak,Math.abs(x));energy+=x*x;mono+=x;}waveform[Math.min(bins-1,Math.floor(i*bins/n))]=Math.max(waveform[Math.min(bins-1,Math.floor(i*bins/n))],Math.abs(mono/channels.length));}\n  const frames=32,size=256;\n  for(let frame=0;frame<frames;frame++){const magnitudes=Array(bins).fill(0),start=Math.floor(frame*Math.max(0,n-size)/Math.max(1,frames-1));\n    for(let k=0;k<bins;k++){let re=0,im=0;const freq=k*128/bins;\n      for(let i=0;i<size;i++){const idx=start+i,x=idx<n?channels.reduce((sum,c)=>sum+c[idx],0)/channels.length:0;\n        const window=0.5-0.5*Math.cos(2*Math.PI*i/(size-1)),phase=2*Math.PI*freq*i/size;\n        re+=x*window*Math.cos(phase);im-=x*window*Math.sin(phase);\n      }magnitudes[k]=Math.sqrt(re*re+im*im)/size;\n      spectrum[k]+=magnitudes[k]/frames;\n    }spectrogram.push(magnitudes);\n  }\n  const rms=Math.sqrt(energy/(n*channels.length));\n  return {waveform,spectrum,spectrogram,peakDb:peak?20*Math.log10(peak):null,rmsDb:rms?20*Math.log10(rms):null,duration:n/buffer.sampleRate,sampleRate:buffer.sampleRate};\n}\nexport function encodeWav(buffer:AudioBuffer):Uint8Array {\n  if(!buffer||buffer.numberOfChannels!==2||!Number.isInteger(buffer.length)||buffer.length<1||![44100,48000,96000].includes(buffer.sampleRate))throw new TypeError('expected stereo AudioBuffer');\n  const size=buffer.length*8,out=new Uint8Array(44+size),v=new DataView(out.buffer);\n  const text=(offset:number,s:string)=>{for(let i=0;i<s.length;i++)v.setUint8(offset+i,s.charCodeAt(i));};\n  text(0,'RIFF');v.setUint32(4,36+size,true);text(8,'WAVE');text(12,'fmt ');v.setUint32(16,16,true);\n  v.setUint16(20,3,true);v.setUint16(22,2,true);v.setUint32(24,buffer.sampleRate,true);v.setUint32(28,buffer.sampleRate*8,true);\n  v.setUint16(32,8,true);v.setUint16(34,32,true);text(36,'data');v.setUint32(40,size,true);\n  const left=buffer.getChannelData(0),right=buffer.getChannelData(1);\n  for(let i=0;i<buffer.length;i++){if(!Number.isFinite(left[i])||!Number.isFinite(right[i]))throw new TypeError('non-finite PCM');v.setFloat32(44+i*8,left[i],true);v.setFloat32(48+i*8,right[i],true);}\n  return out;\n}\n\n/** Explicit consent and shared canonical PCM for audition, analysis and export. */\nexport type StudioSnapshot = Readonly<{enabled:boolean;muted:boolean;contextState:'uninitialized'|AudioContextState;activeVoices:number;lastEvent:SoundEvent|null;error:string|null;energy:number}>;\n/** Ephemeral latest-started audition only. Times are AudioContext seconds, never UI wall time.\n * renderIdentity is the complete canonical render input key, not a persisted patch ID.\n * It may describe an old patch still sounding after an edit; consumers MUST match analysis identity.\n */\nexport type StudioPlaybackPosition = Readonly<{voiceId:number;event:SoundEvent;renderIdentity:string;startedAt:number;contextTime:number;renderedDuration:number;playing:true}>;\ntype RenderEntry = {key:string;buffer:Promise<AudioBuffer>;analysis?:Promise<ReturnType<typeof analyzePcm>>};\nexport class SoundStudioEngine {\n  private theme:SoundTheme;private ctx:AudioContext|null=null;private muted=true;private disposed=false;\n  private sources=new Set<AudioBufferSourceNode>();private cache=new Map<SoundEvent,RenderEntry>();\n  private listeners=new Set<()=>void>();private snapshot:StudioSnapshot=Object.freeze({enabled:false,muted:true,contextState:'uninitialized',activeVoices:0,lastEvent:null,error:null,energy:0});\n  private generation=0;private eventVersions=new Map<SoundEvent,number>();private enablePending:Promise<void>|null=null;\n  private consentGranted=false;\n  private analyser:AnalyserNode|null=null;private samples:Float32Array<ArrayBuffer>|null=null;\n  private stereoMeters:AnalyserNode[]=[];private stereoSplitter:ChannelSplitterNode|null=null;\n  private frame:number|null=null;private lastEnergyPublish=0;private cssTarget?:HTMLElement;\n  private triggerTimes:number[]=[];\n  private voiceSerial=0;\n  private latestPlayback:Omit<StudioPlaybackPosition,'contextTime'>|null=null;\n  private analysisIdentities=new WeakMap<object,string>();\n  constructor(theme:SoundTheme){this.theme=validateSoundTheme(theme);}\n  getSnapshot=():StudioSnapshot=>this.snapshot;\n  /** Live output only; reading never opens a device or grants consent. */\n  getLiveFrame=()=>{\n    const wave=new Float32Array(256),peaks=[0,0];\n    if(this.playable()&&this.sources.size&&this.analyser){this.analyser.getFloatTimeDomainData(wave);const channel=new Float32Array(256);for(let i=0;i<2;i++){(this.stereoMeters[i]??this.analyser).getFloatTimeDomainData(channel);for(const v of channel)peaks[i]=Math.max(peaks[i],Math.abs(v));}}\n    return {wave,peaks};\n  };\n  /** Read without publishing a new StudioSnapshot on each clock tick. Null means no current voice. */\n  getPlaybackPosition=():StudioPlaybackPosition|null=>{\n    const latest=this.latestPlayback,ctx=this.ctx;\n    if(!latest)return null;\n    if(!this.playable()||!ctx||ctx.currentTime>=latest.startedAt+latest.renderedDuration){this.latestPlayback=null;return null;}\n    return Object.freeze({...latest,contextTime:ctx.currentTime});\n  };\n  getRenderIdentity(event:SoundEvent):string {\n    if(!SOUND_EVENTS.includes(event))throw new TypeError('event');\n    return this.renderKey(event);\n  }\n  /** Only analyses actually returned by this engine have a trusted identity. */\n  getAnalysisIdentity(analysis:object):string|null {return this.analysisIdentities.get(analysis)??null;}\n  subscribe=(listener:()=>void):(()=>void)=>{if(this.disposed)return()=>{};this.listeners.add(listener);return()=>this.listeners.delete(listener);};\n  private update(fields:Partial<StudioSnapshot>):void{\n    const next={...this.snapshot,...fields};\n    if((Object.keys(fields) as (keyof StudioSnapshot)[]).every(key=>this.snapshot[key]===next[key]))return;\n    this.snapshot=Object.freeze(next);\n    for(const listener of this.listeners)listener();\n  }\n  private state():StudioSnapshot['contextState']{return this.ctx?.state??'uninitialized';}\n  private playable():boolean{return !this.disposed&&this.consentGranted&&!this.muted&&this.ctx?.state==='running';}\n  private renderKey(event:SoundEvent,theme=this.theme):string{\n    const {name,style,character,...dsp}=theme.events[event];\n    return JSON.stringify([theme.sampleRate,theme.masterGain,dsp]);\n  }\n  private invalidate(event:SoundEvent):void{\n    this.cache.delete(event);\n    this.eventVersions.set(event,(this.eventVersions.get(event)??0)+1);\n  }\n  getBuffer(event:SoundEvent):Promise<AudioBuffer>{\n    if(!SOUND_EVENTS.includes(event))throw new TypeError('event');\n    if(this.disposed)return Promise.reject(new Error('engine disposed'));\n    const key=this.renderKey(event),cached=this.cache.get(event);\n    if(cached?.key===key){this.cache.delete(event);this.cache.set(event,cached);return cached.buffer;}\n    const theme=this.theme;\n    const entry:RenderEntry={key,buffer:Promise.resolve().then(()=>renderSoundPatch(theme.events[event],{sampleRate:theme.sampleRate,masterGain:theme.masterGain}))};\n    this.cache.set(event,entry);\n    while(this.cache.size>6)this.cache.delete(this.cache.keys().next().value!);\n    // Rejection must not poison a later request; completion cannot replace a newer entry.\n    void entry.buffer.then(()=>{},()=>{if(this.cache.get(event)===entry)this.cache.delete(event);});\n    return entry.buffer;\n  }\n  getAnalysis(event:SoundEvent):Promise<ReturnType<typeof analyzePcm>>{\n    const buffer=this.getBuffer(event),entry=this.cache.get(event)!;\n    return entry.analysis??(entry.analysis=buffer.then(value=>{\n      const analysis=analyzePcm(value);this.analysisIdentities.set(analysis,entry.key);return analysis;\n    }).catch(error=>{\n      if(this.cache.get(event)===entry)this.cache.delete(event);\n      throw error;\n    }));\n  }\n  async enable():Promise<void>{\n    if(this.disposed)throw new Error('engine disposed');\n    if(this.enablePending)return this.enablePending;\n    const epoch=this.generation;\n    const pending=(async()=>{\n      try{\n        const ctor=globalThis.AudioContext;if(!ctor)throw new Error('WebAudio unavailable');\n        let ctx=this.ctx;\n        if(!ctx||ctx.state==='closed'){\n          ctx=new ctor({sampleRate:this.theme.sampleRate});this.ctx=ctx;this.analyser=null;\n          const created=ctx;\n          created.onstatechange=()=>{\n            if(this.disposed||this.ctx!==created)return;\n            this.update({contextState:created.state,enabled:this.consentGranted&&!this.muted&&created.state==='running'});\n            if(created.state!=='running'){this.latestPlayback=null;this.resetEnergy();}\n          };\n        }\n        if(ctx.state!=='running')await ctx.resume();\n        if(this.disposed||epoch!==this.generation)throw new Error('Audio enable cancelled');\n        if(ctx.state!=='running')throw new Error('Audio context did not resume');\n        this.consentGranted=true;this.muted=false;\n        this.update({enabled:true,muted:false,contextState:ctx.state,error:null});\n      }catch(error){\n        if(!this.disposed)this.update({enabled:false,muted:this.muted,contextState:this.state(),error:error instanceof Error?error.message:'Audio unavailable'});\n        throw error;\n      }\n    })();\n    this.enablePending=pending;\n    try{await pending;}finally{if(this.enablePending===pending)this.enablePending=null;}\n  }\n  setMuted(value:boolean):void{\n    if(this.disposed)throw new Error('engine disposed');\n    this.muted=bool(value,'muted');\n    if(value)this.stopAll();\n    this.update({muted:value,enabled:this.consentGranted&&this.ctx?.state==='running'&&!value,contextState:this.state()});\n  }\n  setTheme(value:SoundTheme):void{\n    if(this.disposed)throw new Error('engine disposed');\n    const next=validateSoundTheme(value),prior=this.theme;\n    this.theme=next;\n    for(const event of SOUND_EVENTS)if(this.renderKey(event,prior)!==this.renderKey(event,next))this.invalidate(event);\n  }\n  setEventPatch(event:SoundEvent,patch:SoundPatch):void{\n    if(this.disposed)throw new Error('engine disposed');\n    if(!SOUND_EVENTS.includes(event))throw new TypeError('event');\n    const next=validateSoundPatch(patch);\n    this.setTheme({...this.theme,events:{...this.theme.events,[event]:next}});\n  }\n  setCssTarget(target?:HTMLElement):void{\n    if(this.cssTarget===target)return;\n    this.cssTarget?.style.removeProperty('--sonic-energy');\n    if(this.disposed)return;\n    this.cssTarget=target;\n    this.writeEnergy(this.snapshot.energy);\n  }\n  private writeEnergy(value:number):void{this.cssTarget?.style.setProperty('--sonic-energy',String(value));}\n  private meter=():void=>{\n    this.frame=null;\n    if(!this.playable()||!this.sources.size||!this.analyser||!this.samples){this.resetEnergy();return;}\n    this.analyser.getFloatTimeDomainData(this.samples);\n    let power=0;for(const sample of this.samples)power+=sample*sample;\n    const energy=Math.min(1,Math.sqrt(power/this.samples.length)*4);\n    this.writeEnergy(energy);\n    const now=performance.now();\n    if(now-this.lastEnergyPublish>=100){this.lastEnergyPublish=now;this.update({energy:Math.round(energy*20)/20});}\n    if(typeof requestAnimationFrame==='function')this.frame=requestAnimationFrame(this.meter);\n  };\n  private resetEnergy():void{\n    if(this.frame!==null&&typeof cancelAnimationFrame==='function')cancelAnimationFrame(this.frame);\n    this.frame=null;this.lastEnergyPublish=0;this.writeEnergy(0);this.update({energy:0});\n  }\n  stopAll():void{\n    this.generation++;\n    this.latestPlayback=null;\n    for(const src of this.sources){src.onended=null;try{src.stop();}catch{/* already ended */}src.disconnect();}\n    this.sources.clear();this.triggerTimes=[];this.resetEnergy();this.update({activeVoices:0});\n  }\n  async trigger(event:SoundEvent):Promise<boolean>{\n    if(!SOUND_EVENTS.includes(event))throw new TypeError('event');\n    if(!this.playable())return false;\n    const ctx=this.ctx!,generation=this.generation,version=this.eventVersions.get(event)??0,renderIdentity=this.renderKey(event);\n    const now=performance.now();this.triggerTimes=this.triggerTimes.filter(t=>now-t<1000);\n    if(this.triggerTimes.length>=28||this.sources.size>=24)return false;\n    this.triggerTimes.push(now);\n    let buffer:AudioBuffer;\n    try{buffer=await this.getBuffer(event);}catch(error){\n      if(!this.disposed)this.update({error:error instanceof Error?error.message:'Audio rendering failed'});\n      return false;\n    }\n    if(!this.playable()||this.ctx!==ctx||generation!==this.generation||version!==(this.eventVersions.get(event)??0)||this.sources.size>=24)return false;\n    try{\n      if(!this.analyser&&typeof ctx.createAnalyser==='function'){\n        this.analyser=ctx.createAnalyser();this.analyser.fftSize=256;\n        this.samples=new Float32Array(this.analyser.fftSize);\n        this.analyser.connect(ctx.destination);\n        if(typeof ctx.createChannelSplitter==='function'){this.stereoSplitter=ctx.createChannelSplitter(2);this.analyser.connect(this.stereoSplitter);for(let i=0;i<2;i++){const meter=ctx.createAnalyser();meter.fftSize=256;this.stereoSplitter.connect(meter,i);this.stereoMeters.push(meter);}}\n      }\n      const source=ctx.createBufferSource();source.buffer=buffer;source.connect(this.analyser??ctx.destination);\n      this.sources.add(source);\n      const voiceId=++this.voiceSerial,startedAt=ctx.currentTime;\n      source.onended=()=>{source.disconnect();this.sources.delete(source);if(this.latestPlayback?.voiceId===voiceId)this.latestPlayback=null;this.update({activeVoices:this.sources.size});if(!this.sources.size)this.resetEnergy();};\n      source.start(startedAt);\n      this.latestPlayback=Object.freeze({voiceId,event,renderIdentity,startedAt,renderedDuration:buffer.length/buffer.sampleRate,playing:true});\n      this.update({lastEvent:event,activeVoices:this.sources.size,error:null,contextState:ctx.state});\n      if(this.analyser&&this.frame===null&&typeof requestAnimationFrame==='function')this.frame=requestAnimationFrame(this.meter);\n      return true;\n    }catch(error){\n      this.stopAll();this.update({error:error instanceof Error?error.message:'Audio scheduling failed'});\n      return false;\n    }\n  }\n  async dispose():Promise<void>{\n    if(this.disposed)return;this.disposed=true;this.muted=true;this.stopAll();\n    this.cache.clear();this.setCssTarget();this.cssTarget?.style.removeProperty('--sonic-energy');this.cssTarget=undefined;\n    this.analyser?.disconnect();this.analyser=null;this.samples=null;\n    this.stereoSplitter?.disconnect();this.stereoSplitter=null;for(const meter of this.stereoMeters)meter.disconnect();this.stereoMeters=[];\n    const ctx=this.ctx;this.ctx=null;\n    this.update({enabled:false,muted:true,contextState:'uninitialized',activeVoices:0,energy:0});\n    this.listeners.clear();if(ctx&&ctx.state!=='closed')await ctx.close();\n  }\n}\n";
 
 // desktop-src/studio-export.ts
 function serializeTheme(theme) {
@@ -8295,45 +8309,11 @@ function ComposeSoundEditor({ layer: layer2, edit, onUndo, onClose, begin = () =
   ] });
 }
 
-// desktop-src/compose-view-model.ts
-function notesInCell(notes2, beat, pitch, selected) {
-  return notes2.filter((n) => n.pitch === pitch && n.beat < beat + 0.5 && n.beat + n.duration > beat).sort((a, b) => Number(b.id === selected) - Number(a.id === selected) || b.beat - a.beat || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-}
-function gridAction(notes2, selected, beat, pitch, remove) {
-  const hit = notesInCell(notes2, beat, pitch, selected)[0];
-  if (!hit) return { kind: remove ? "none" : "create" };
-  return { kind: remove || hit.id === selected && hit.beat >= beat && hit.beat < beat + 0.5 ? "delete" : "select", id: hit.id };
-}
-function visibleDuration(beat, loop, requested) {
-  const limit = Math.min(4, loop - beat, 16 - beat);
-  if (limit < 0.25) return null;
-  return Math.max(0.25, Math.min(Math.floor(limit * 4) / 4, Math.round(requested * 4) / 4));
-}
-function cellCoverage(note, beat, span = 0.5) {
-  const start = Math.max(beat, note.beat), end = Math.min(beat + span, note.beat + note.duration);
-  return end > start ? { left: (start - beat) / span, width: (end - start) / span, onset: note.beat >= beat && note.beat < beat + span } : null;
-}
-var pitchTop = (pitch) => 6 + (84 - Math.max(28, Math.min(84, pitch))) / 56 * 104;
-var colors = ["#79b8ff", "#c4a3ff", "#69d6b0", "#ffc270", "#f59bb6", "#83d8e8", "#d2d879", "#b5b9ff"];
-function layerColor(id) {
-  let hash = 2166136261;
-  for (let i = 0; i < id.length; i++) {
-    hash ^= id.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return colors[(hash >>> 0) % colors.length];
-}
-var layerAudible = (layer2, solo) => !layer2.muted && (solo.size === 0 || solo.has(layer2.id));
-function transposeRoot(c, root) {
-  const delta = root - c.root;
-  if (c.layers.some((l) => l.notes.some((n) => n.pitch + delta < 28 || n.pitch + delta > 84))) throw new RangeError("Root transpose would move a pitch outside MIDI 28\u201384. No notes changed.");
-  return { ...c, root, layers: c.layers.map((l) => ({ ...l, notes: l.notes.map((n) => ({ ...n, pitch: n.pitch + delta })) })) };
-}
-var timingChanged = (before, after) => before.id !== after.id || before.tempo !== after.tempo || before.meter !== after.meter || before.bars !== after.bars || before.loopStart !== after.loopStart || before.loopEnd !== after.loopEnd;
-
 // desktop-src/compose-model.ts
 var MAX_COMPOSE_LAYERS = 8;
-var MAX_COMPOSE_NOTES = 256;
+var MAX_COMPOSE_BARS = 32;
+var MAX_COMPOSE_BEATS = MAX_COMPOSE_BARS * 4;
+var MAX_COMPOSE_NOTES = 2048;
 function shape2(value, keys, what) {
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype || Reflect.ownKeys(value).length !== keys.length || keys.some((key) => !Object.hasOwn(value, key))) throw new TypeError(`${what}: invalid keys`);
 }
@@ -8352,12 +8332,12 @@ function identity(value, seen, what) {
   return id;
 }
 function notes(value, seen) {
-  if (!Array.isArray(value) || value.length > MAX_COMPOSE_NOTES) throw new RangeError("notes: at most 256 notes");
+  if (!Array.isArray(value) || value.length > MAX_COMPOSE_NOTES) throw new RangeError(`notes: at most ${MAX_COMPOSE_NOTES} notes`);
   const result = [];
   for (const note of value) {
     shape2(note, ["id", "beat", "duration", "pitch", "velocity"], "note");
-    const id = identity(note.id, seen, "note id"), beat = number(note.beat, 0, 16, "beat"), duration = number(note.duration, 0.25, 4, "duration");
-    if (beat + duration > 16) throw new RangeError("note end: must not exceed beat 16");
+    const id = identity(note.id, seen, "note id"), beat = number(note.beat, 0, MAX_COMPOSE_BEATS, "beat"), duration = number(note.duration, 0.25, 4, "duration");
+    if (beat + duration > MAX_COMPOSE_BEATS) throw new RangeError(`note end: must not exceed beat ${MAX_COMPOSE_BEATS}`);
     result.push({ id, beat, duration, pitch: number(note.pitch, 28, 84, "pitch", true), velocity: number(note.velocity, 0.1, 1, "velocity") });
   }
   return result;
@@ -8376,9 +8356,9 @@ function validateComposition(value) {
   if (!Array.isArray(value.layers) || value.layers.length < 1 || value.layers.length > MAX_COMPOSE_LAYERS) throw new RangeError("layers: expected 1\u20138 layers");
   const seen = /* @__PURE__ */ new Set(), id = identity(value.id, seen, "composition id"), layers = [];
   for (const item of value.layers) layers.push(layer(item, seen));
-  if (layers.reduce((count, item) => count + item.notes.length, 0) > MAX_COMPOSE_NOTES) throw new RangeError("composition: at most 256 notes total");
+  if (layers.reduce((count, item) => count + item.notes.length, 0) > MAX_COMPOSE_NOTES) throw new RangeError(`composition: at most ${MAX_COMPOSE_NOTES} notes total`);
   if (typeof value.selectedLayer !== "string" || !layers.some((item) => item.id === value.selectedLayer)) throw new TypeError("selectedLayer: unknown layer");
-  const bars = number(value.bars, 1, 4, "bars", true);
+  const bars = number(value.bars, 1, MAX_COMPOSE_BARS, "bars", true);
   const loop = windowed ? { loopStart: number(value.loopStart, 0, bars * value.meter - 0.5, "loop start"), loopEnd: number(value.loopEnd, 0.5, bars * value.meter, "loop end") } : {};
   if (windowed && loop.loopEnd - loop.loopStart < 0.5) throw new RangeError("Loop must contain at least half a beat");
   return { schemaVersion: "Composition/v1", id, name: text(value.name, "composition name"), tempo: number(value.tempo, 60, 200, "tempo"), meter: value.meter, root: number(value.root, 36, 72, "root", true), bars, layers, selectedLayer: value.selectedLayer, ...loop };
@@ -8406,6 +8386,95 @@ function createComposition() {
   bass.gainDb = -6;
   chords.gainDb = -12;
   return validateComposition({ schemaVersion: "Composition/v1", id: crypto.randomUUID(), name: "Untitled composition", tempo: 120, meter: 4, root: 57, bars: 2, layers: [bass, chords], selectedLayer: bass.id });
+}
+
+// desktop-src/compose-view-model.ts
+function composeEditorSnapshot(read) {
+  let previous;
+  return () => {
+    const { positionBeat: _position, ...next } = read();
+    if (!previous || Object.entries(next).some(([key, value]) => previous[key] !== value)) previous = Object.freeze(next);
+    return previous;
+  };
+}
+function indexComposeNotes(notes2, total, selected) {
+  const cells = /* @__PURE__ */ new Map(), pitches = /* @__PURE__ */ new Set();
+  const velocity = [], counts = /* @__PURE__ */ new Map();
+  for (const note of notes2) {
+    pitches.add(note.pitch);
+    if (note.beat >= total) continue;
+    const offset = counts.get(note.beat) ?? 0;
+    counts.set(note.beat, offset + 1);
+    velocity.push({ note, offset });
+    let row = cells.get(note.pitch);
+    if (!row) {
+      row = /* @__PURE__ */ new Map();
+      cells.set(note.pitch, row);
+    }
+    const first = Math.max(0, Math.floor(note.beat * 2)), last = Math.min(Math.ceil(total * 2), Math.ceil((note.beat + note.duration) * 2));
+    for (let step = first; step < last; step++) {
+      let hits = row.get(step);
+      if (!hits) {
+        hits = [];
+        row.set(step, hits);
+      }
+      hits.push(note);
+    }
+  }
+  for (const row of cells.values()) for (const hits of row.values()) hits.sort((a, b) => Number(b.id === selected) - Number(a.id === selected) || b.beat - a.beat || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return { cells, pitches, velocity };
+}
+function notesInCell(notes2, beat, pitch, selected) {
+  return notes2.filter((n) => n.pitch === pitch && n.beat < beat + 0.5 && n.beat + n.duration > beat).sort((a, b) => Number(b.id === selected) - Number(a.id === selected) || b.beat - a.beat || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+function gridAction(notes2, selected, beat, pitch, remove) {
+  const hit = notesInCell(notes2, beat, pitch, selected)[0];
+  if (!hit) return { kind: remove ? "none" : "create" };
+  return { kind: remove || hit.id === selected && hit.beat >= beat && hit.beat < beat + 0.5 ? "delete" : "select", id: hit.id };
+}
+function visibleDuration(beat, loop, requested) {
+  const limit = Math.min(4, loop - beat, MAX_COMPOSE_BEATS - beat);
+  if (limit < 0.25) return null;
+  return Math.max(0.25, Math.min(Math.floor(limit * 4) / 4, Math.round(requested * 4) / 4));
+}
+function cellCoverage(note, beat, span = 0.5) {
+  const start = Math.max(beat, note.beat), end = Math.min(beat + span, note.beat + note.duration);
+  return end > start ? { left: (start - beat) / span, width: (end - start) / span, onset: note.beat >= beat && note.beat < beat + span } : null;
+}
+var pitchTop = (pitch) => 6 + (84 - Math.max(28, Math.min(84, pitch))) / 56 * 104;
+var colors = ["#79b8ff", "#c4a3ff", "#69d6b0", "#ffc270", "#f59bb6", "#83d8e8", "#d2d879", "#b5b9ff"];
+function layerColor(id) {
+  let hash = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    hash ^= id.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return colors[(hash >>> 0) % colors.length];
+}
+var layerAudible = (layer2, solo) => !layer2.muted && (solo.size === 0 || solo.has(layer2.id));
+function transposeRoot(c, root) {
+  const delta = root - c.root;
+  if (c.layers.some((l) => l.notes.some((n) => n.pitch + delta < 28 || n.pitch + delta > 84))) throw new RangeError("Root transpose would move a pitch outside MIDI 28\u201384. No notes changed.");
+  return { ...c, root, layers: c.layers.map((l) => ({ ...l, notes: l.notes.map((n) => ({ ...n, pitch: n.pitch + delta })) })) };
+}
+var timingChanged = (before, after) => before.id !== after.id || before.tempo !== after.tempo || before.meter !== after.meter || before.bars !== after.bars || before.loopStart !== after.loopStart || before.loopEnd !== after.loopEnd;
+
+// desktop-src/compose-playhead.tsx
+import { useSyncExternalStore as useSyncExternalStore2 } from "react";
+import { Fragment as Fragment7, jsx as jsx16, jsxs as jsxs16 } from "react/jsx-runtime";
+var usePosition = (audio) => useSyncExternalStore2(audio.subscribe, () => audio.getSnapshot().positionBeat, () => 0);
+function ComposePlayhead({ audio, total, grid = false }) {
+  const position = usePosition(audio);
+  return /* @__PURE__ */ jsx16("i", { className: grid ? "cp-grid-playhead" : "cp-playhead", "aria-hidden": "true", style: { left: grid ? `calc(52px + (100% - 52px) * ${position / total})` : `${position / total * 100}%` } });
+}
+function ComposePosition({ audio }) {
+  return /* @__PURE__ */ jsxs16(Fragment7, { children: [
+    usePosition(audio).toFixed(1),
+    " beats"
+  ] });
+}
+function ComposeLoopBrace({ audio, ...props }) {
+  return /* @__PURE__ */ jsx16(LoopBrace, { ...props, position: usePosition(audio) });
 }
 
 // desktop-src/compose-live-cache.ts
@@ -9201,7 +9270,7 @@ function createCompositionWavExporter(options) {
 }
 
 // desktop-src/compose-workspace.tsx
-import { Fragment as Fragment7, jsx as jsx16, jsxs as jsxs16 } from "react/jsx-runtime";
+import { Fragment as Fragment8, jsx as jsx17, jsxs as jsxs17 } from "react/jsx-runtime";
 var names = ["C", "C\u266F", "D", "D\u266F", "E", "F", "F\u266F", "G", "G\u266F", "A", "A\u266F", "B"];
 var composePitchName = (midi) => `${names[midi % 12]}${Math.floor(midi / 12) - 1}`;
 function newLayerName(layers, requested) {
@@ -9222,17 +9291,19 @@ function SoundWorkspace({ store, composeStore, writeClipboard, backgroundDrafts,
     composeStore.update((c) => ({ ...c, layers: [...c.layers, layer2], selectedLayer: layer2.id }));
     setTask("compose");
   };
-  const taskNavigation = /* @__PURE__ */ jsxs16(Fragment7, { children: [
-    /* @__PURE__ */ jsx16("button", { type: "button", "aria-pressed": task === "sound-design", onClick: () => setTask("sound-design"), children: "Sound Design" }),
-    /* @__PURE__ */ jsx16("button", { type: "button", "aria-pressed": task === "compose", onClick: () => setTask("compose"), children: "Compose" })
+  const taskNavigation = /* @__PURE__ */ jsxs17(Fragment8, { children: [
+    /* @__PURE__ */ jsx17("button", { type: "button", "aria-pressed": task === "sound-design", onClick: () => setTask("sound-design"), children: "Sound Design" }),
+    /* @__PURE__ */ jsx17("button", { type: "button", "aria-pressed": task === "compose", onClick: () => setTask("compose"), children: "Compose" })
   ] });
-  return /* @__PURE__ */ jsx16("div", { className: "sound-workspace", children: /* @__PURE__ */ jsx16("div", { className: "cp-task-body", children: task === "sound-design" ? /* @__PURE__ */ jsx16(SoundStudioView, { previewEngine: audioSession?.studio, desktopTarget, store, writeClipboard, backgroundDrafts, previewBridge, scopeKey, onUseInCompose: useSound, taskNavigation }) : /* @__PURE__ */ jsx16(ComposeWorkspace, { audioInstance: audioSession?.compose, scopeKey, store: composeStore, eventStore: store, writeClipboard, taskNavigation }, scopeKey) }) });
+  return /* @__PURE__ */ jsx17("div", { className: "sound-workspace", children: /* @__PURE__ */ jsx17("div", { className: "cp-task-body", children: task === "sound-design" ? /* @__PURE__ */ jsx17(SoundStudioView, { previewEngine: audioSession?.studio, desktopTarget, store, writeClipboard, backgroundDrafts, previewBridge, scopeKey, onUseInCompose: useSound, taskNavigation }) : /* @__PURE__ */ jsx17(ComposeWorkspace, { audioInstance: audioSession?.compose, scopeKey, store: composeStore, eventStore: store, writeClipboard, taskNavigation }, scopeKey) }) });
 }
 function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, scopeKey = "compose", audioInstance }) {
-  useSyncExternalStore2(store.subscribe, store.getSnapshot, store.getSnapshot);
-  useSyncExternalStore2(eventStore.subscribe, eventStore.getSnapshot, eventStore.getSnapshot);
+  useSyncExternalStore3(store.subscribe, store.getSnapshot, store.getSnapshot);
+  useSyncExternalStore3(eventStore.subscribe, eventStore.getSnapshot, eventStore.getSnapshot);
   const state = store.state, c = state.composition, layer2 = c.layers.find((l) => l.id === c.selectedLayer);
-  const [audio] = useState7(() => audioInstance ?? new ComposeAudio()), snapshot = useSyncExternalStore2(audio.subscribe, audio.getSnapshot, audio.getSnapshot);
+  const [audio] = useState7(() => audioInstance ?? new ComposeAudio());
+  const editorSnapshot = useMemo(() => composeEditorSnapshot(audio.getSnapshot), [audio]);
+  const snapshot = useSyncExternalStore3(audio.subscribe, editorSnapshot, editorSnapshot);
   const [gridOpen, setGridOpen] = useState7(true), [fold, setFold] = useState7(false), [scale, setScale] = useState7("minor"), [helpOpen, setHelpOpen] = useState7(false);
   const [statusHint, setStatusHint] = useState7("Drag values vertically \xB7 double-click to type \xB7 edits are silent");
   useEffect5(() => {
@@ -9254,6 +9325,7 @@ function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, s
   const [notice, setNotice] = useState7(""), [error, setError] = useState7(""), [saveName, setSaveName] = useState7(c.name), [drawer, setDrawer] = useState7(false);
   const [noteId, setNoteId] = useState7(null), [noteDuration, setNoteDuration] = useState7(1), [octave, setOctave] = useState7(3), [preset, setPreset] = useState7(""), [tailSeconds, setTailSeconds] = useState7({}), [showTails, setShowTails] = useState7(false);
   const note = layer2.notes.find((n) => n.id === noteId) ?? null, loopBeats = c.bars * c.meter, steps = loopBeats * 2;
+  const noteIndex = useMemo(() => indexComposeNotes(layer2.notes, loopBeats, noteId), [layer2.notes, loopBeats, noteId]);
   const previousLayer = useRef5(layer2.id), editorOpener = useRef5(null);
   const [solo, setSolo] = useState7(() => /* @__PURE__ */ new Set()), [preview, setPreview] = useState7(null), [overlapCell, setOverlapCell] = useState7(null);
   const drag = useRef5(null), suppressClick = useRef5(null);
@@ -9539,7 +9611,7 @@ function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, s
       setTimeout(() => URL.revokeObjectURL(url), 1e3);
     }
   };
-  const importControl = /* @__PURE__ */ jsx16(JsonFileImport, { help: "Composition/v1: replaces the complete arrangement, not event sounds. Detaches the previous named save.", options: {
+  const importControl = /* @__PURE__ */ jsx17(JsonFileImport, { help: "Composition/v1: replaces the complete arrangement, not event sounds. Detaches the previous named save.", options: {
     snapshot: () => ({ target: store, revision: store.getSnapshot(), scope: scopeKey, selection: JSON.stringify([store.state.composition.selectedLayer, live.current.note]) }),
     inScope: () => live.current.mounted && live.current.store === store && live.current.scope === scopeKey,
     validate: validateComposition,
@@ -9590,34 +9662,34 @@ function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, s
     });
   };
   const mixLayer = (id, patch) => change((value) => ({ ...value, layers: value.layers.map((l) => l.id === id ? { ...l, ...patch } : l) }));
-  const wavAction = /* @__PURE__ */ jsxs16(Fragment7, { children: [
-    /* @__PURE__ */ jsx16("button", { type: "button", title: "48 kHz stereo float WAV \xB7 active loop and effect tails \xB7 respects Mute and Solo", disabled: wavState.busy, onClick: () => void wavExporter.start(), children: wavState.busy ? "Exporting\u2026" : "\u2197 Export WAV" }),
-    wavState.busy && /* @__PURE__ */ jsx16("button", { onClick: () => wavExporter.cancel(), children: "Cancel" })
+  const wavAction = /* @__PURE__ */ jsxs17(Fragment8, { children: [
+    /* @__PURE__ */ jsx17("button", { type: "button", title: "48 kHz stereo float WAV \xB7 active loop and effect tails \xB7 respects Mute and Solo", disabled: wavState.busy, onClick: () => void wavExporter.start(), children: wavState.busy ? "Exporting\u2026" : "\u2197 Export WAV" }),
+    wavState.busy && /* @__PURE__ */ jsx17("button", { onClick: () => wavExporter.cancel(), children: "Cancel" })
   ] });
-  return /* @__PURE__ */ jsx16(ParameterScope, { identity: `${scopeKey}:${c.id}`, children: /* @__PURE__ */ jsxs16("div", { "data-sound-studio": "", "data-compose": "", onMouseOver: (e) => {
+  return /* @__PURE__ */ jsx17(ParameterScope, { identity: `${scopeKey}:${c.id}`, children: /* @__PURE__ */ jsxs17("div", { "data-sound-studio": "", "data-compose": "", onMouseOver: (e) => {
     const target = e.target.closest("[title]");
     if (target?.title) setStatusHint(target.title);
   }, onFocusCapture: (e) => {
     const target = e.target.closest("[title]");
     if (target?.title) setStatusHint(target.title);
   }, children: [
-    /* @__PURE__ */ jsx16(
+    /* @__PURE__ */ jsx17(
       StudioTopbar,
       {
         taskNavigation,
-        documentName: /* @__PURE__ */ jsx16("input", { className: "ss-document-name", type: "text", "aria-label": "Composition name", value: saveName, onChange: (e) => setSaveName(e.target.value) }),
+        documentName: /* @__PURE__ */ jsx17("input", { className: "ss-document-name", type: "text", "aria-label": "Composition name", value: saveName, onChange: (e) => setSaveName(e.target.value) }),
         saveStatus: `${saveStatus} \xB7 ${state.status}`,
         unsaved: unsavedComposition,
-        saveAction: /* @__PURE__ */ jsx16("button", { className: "ss-primary", type: "button", onClick: () => store.save(saveName), children: "Save composition" }),
-        documentActions: /* @__PURE__ */ jsxs16(Fragment7, { children: [
-          /* @__PURE__ */ jsx16("button", { type: "button", onClick: () => replaceDocument(), children: "New composition" }),
-          /* @__PURE__ */ jsx16("button", { type: "button", disabled: !state.canUndo, onClick: undo, children: "Undo" }),
-          /* @__PURE__ */ jsx16("button", { type: "button", onClick: () => void exportJson(), children: "Copy JSON" }),
-          /* @__PURE__ */ jsx16("button", { type: "button", onClick: download, children: "Download JSON" }),
+        saveAction: /* @__PURE__ */ jsx17("button", { className: "ss-primary", type: "button", onClick: () => store.save(saveName), children: "Save composition" }),
+        documentActions: /* @__PURE__ */ jsxs17(Fragment8, { children: [
+          /* @__PURE__ */ jsx17("button", { type: "button", onClick: () => replaceDocument(), children: "New composition" }),
+          /* @__PURE__ */ jsx17("button", { type: "button", disabled: !state.canUndo, onClick: undo, children: "Undo" }),
+          /* @__PURE__ */ jsx17("button", { type: "button", onClick: () => void exportJson(), children: "Copy JSON" }),
+          /* @__PURE__ */ jsx17("button", { type: "button", onClick: download, children: "Download JSON" }),
           importControl,
-          /* @__PURE__ */ jsx16("h3", { children: "Saved compositions" }),
-          state.compositions.length ? state.compositions.map((row) => /* @__PURE__ */ jsx16("button", { type: "button", onClick: () => replaceDocument(row.id), children: row.name }, row.id)) : /* @__PURE__ */ jsx16("small", { children: "No named compositions yet." }),
-          /* @__PURE__ */ jsxs16("small", { children: [
+          /* @__PURE__ */ jsx17("h3", { children: "Saved compositions" }),
+          state.compositions.length ? state.compositions.map((row) => /* @__PURE__ */ jsx17("button", { type: "button", onClick: () => replaceDocument(row.id), children: row.name }, row.id)) : /* @__PURE__ */ jsx17("small", { children: "No named compositions yet." }),
+          /* @__PURE__ */ jsxs17("small", { children: [
             "Recovery: ",
             state.recovery,
             ". Save creates a named composition."
@@ -9626,174 +9698,174 @@ function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, s
       }
     ),
     review.prompt,
-    /* @__PURE__ */ jsxs16("div", { className: "ss-shell", children: [
-      (state.error || error || snapshot.error || snapshot.updateError || wavState.error) && /* @__PURE__ */ jsx16("div", { className: "ss-alert", role: "alert", children: [state.error, error, snapshot.error, snapshot.updateError, wavState.error].filter(Boolean).join(" \xB7 ") }),
-      wavState.message && /* @__PURE__ */ jsx16("div", { className: "ss-notice", role: "status", children: wavState.message }),
-      /* @__PURE__ */ jsxs16("div", { ref: sessionContext, className: "cp-session-context", children: [
-        /* @__PURE__ */ jsx16("section", { className: "cp-transport", "aria-label": "Composition transport", children: /* @__PURE__ */ jsxs16("div", { className: "cp-actions", children: [
-          needsAudio && /* @__PURE__ */ jsx16("button", { type: "button", title: "Enable local audio \xB7 silent until Play", disabled: snapshot.pending, onClick: () => void audio.enable(), children: "Enable audio" }),
-          /* @__PURE__ */ jsx16("button", { type: "button", className: "cp-play", "aria-label": "Play loop", title: "Play loop", "aria-pressed": snapshot.playing, disabled: needsAudio || transportBusy, onClick: () => {
+    /* @__PURE__ */ jsxs17("div", { className: "ss-shell", children: [
+      (state.error || error || snapshot.error || snapshot.updateError || wavState.error) && /* @__PURE__ */ jsx17("div", { className: "ss-alert", role: "alert", children: [state.error, error, snapshot.error, snapshot.updateError, wavState.error].filter(Boolean).join(" \xB7 ") }),
+      wavState.message && /* @__PURE__ */ jsx17("div", { className: "ss-notice", role: "status", children: wavState.message }),
+      /* @__PURE__ */ jsxs17("div", { ref: sessionContext, className: "cp-session-context", children: [
+        /* @__PURE__ */ jsx17("section", { className: "cp-transport", "aria-label": "Composition transport", children: /* @__PURE__ */ jsxs17("div", { className: "cp-actions", children: [
+          needsAudio && /* @__PURE__ */ jsx17("button", { type: "button", title: "Enable local audio \xB7 silent until Play", disabled: snapshot.pending, onClick: () => void audio.enable(), children: "Enable audio" }),
+          /* @__PURE__ */ jsx17("button", { type: "button", className: "cp-play", "aria-label": "Play loop", title: "Play loop", "aria-pressed": snapshot.playing, disabled: needsAudio || transportBusy, onClick: () => {
             audio.setComposition(store.state.composition);
             void audio.play();
           }, children: "\u25B6" }),
-          /* @__PURE__ */ jsx16("button", { type: "button", "aria-label": "Stop", title: "Stop loop and reset playhead", disabled: !transportBusy, onClick: () => audio.stop(), children: "\u25A0" }),
-          /* @__PURE__ */ jsx16("button", { type: "button", "aria-label": "Mute audio", title: "Mute local audio", disabled: snapshot.muted, onClick: () => audio.mute(), children: "\u25D6\xD7" }),
-          /* @__PURE__ */ jsx16("span", { className: "cp-ready-dot", "data-playing": snapshot.playing, title: readiness })
+          /* @__PURE__ */ jsx17("button", { type: "button", "aria-label": "Stop", title: "Stop loop and reset playhead", disabled: !transportBusy, onClick: () => audio.stop(), children: "\u25A0" }),
+          /* @__PURE__ */ jsx17("button", { type: "button", "aria-label": "Mute audio", title: "Mute local audio", disabled: snapshot.muted, onClick: () => audio.mute(), children: "\u25D6\xD7" }),
+          /* @__PURE__ */ jsx17("span", { className: "cp-ready-dot", "data-playing": snapshot.playing, title: readiness })
         ] }) }),
-        /* @__PURE__ */ jsxs16("section", { className: "cp-lcds", "aria-label": "Musical timing", children: [
-          /* @__PURE__ */ jsx16(DragValue, { id: "cp-tempo", label: "Tempo", value: c.tempo, min: 60, max: 200, step: 1, unit: " BPM", onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => change((value) => ({ ...value, tempo: v })) }),
-          /* @__PURE__ */ jsx16(DragValue, { id: "cp-meter", label: "Meter", value: c.meter, min: 3, max: 4, step: 1, display: (v) => `${v}/4`, onChange: (v) => setTiming(c.bars, v) }),
-          /* @__PURE__ */ jsx16(DragValue, { id: "cp-root", label: "Root", value: c.root, min: 36, max: 72, step: 1, display: composePitchName, parse: parsePitchName, onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => change((value) => transposeRoot(value, v)) }),
-          /* @__PURE__ */ jsx16(DragValue, { id: "cp-bars", label: "Loop length", value: c.bars, min: 1, max: 4, step: 1, unit: " Bars", onChange: (v) => setTiming(v, c.meter) })
+        /* @__PURE__ */ jsxs17("section", { className: "cp-lcds", "aria-label": "Musical timing", children: [
+          /* @__PURE__ */ jsx17(DragValue, { id: "cp-tempo", label: "Tempo", value: c.tempo, min: 60, max: 200, step: 1, unit: " BPM", onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => change((value) => ({ ...value, tempo: v })) }),
+          /* @__PURE__ */ jsx17(DragValue, { id: "cp-meter", label: "Meter", value: c.meter, min: 3, max: 4, step: 1, display: (v) => `${v}/4`, onChange: (v) => setTiming(c.bars, v) }),
+          /* @__PURE__ */ jsx17(DragValue, { id: "cp-root", label: "Root", value: c.root, min: 36, max: 72, step: 1, display: composePitchName, parse: parsePitchName, onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => change((value) => transposeRoot(value, v)) }),
+          /* @__PURE__ */ jsx17(DragValue, { id: "cp-bars", label: "Loop length", value: c.bars, min: 1, max: MAX_COMPOSE_BARS, step: 1, unit: " Bars", onChange: (v) => setTiming(v, c.meter) })
         ] }),
-        /* @__PURE__ */ jsxs16("div", { className: "cp-export-actions", children: [
+        /* @__PURE__ */ jsxs17("div", { className: "cp-export-actions", children: [
           wavAction,
-          /* @__PURE__ */ jsx16("button", { type: "button", "aria-label": "Studio help", "data-studio-help-toggle": "", "aria-expanded": helpOpen, onClick: () => setHelpOpen(!helpOpen), children: "?" })
+          /* @__PURE__ */ jsx17("button", { type: "button", "aria-label": "Studio help", "data-studio-help-toggle": "", "aria-expanded": helpOpen, onClick: () => setHelpOpen(!helpOpen), children: "?" })
         ] })
       ] }),
-      helpOpen && /* @__PURE__ */ jsxs16("aside", { className: "cp-help-pop", "aria-label": "Studio help", children: [
-        /* @__PURE__ */ jsx16("button", { type: "button", onClick: () => setHelpOpen(false), children: "Close help \xD7" }),
-        /* @__PURE__ */ jsx16("h3", { children: "Arrangement & notes" }),
-        /* @__PURE__ */ jsx16("p", { children: "Click an empty cell to add, or drag to set its length. First click selects a note; click its selected onset again to delete. Sustain clicks select. Shift-click or right-click deletes one note. Delete / Backspace acts only inside the grid." }),
-        /* @__PURE__ */ jsx16("p", { children: "Drag the loop brace handles to set the active range; click the ruler to seek. Notes outside the range stay in your composition. WAV exports the active range with effect tails. Timing changes stop playback." }),
-        /* @__PURE__ */ jsx16("p", { children: "Solid clips show musical duration. Optional dashed tails show representative buffer allowance, not measured audible duration. Layer levels feed the master; Solo is session-only and Mute wins." }),
-        /* @__PURE__ */ jsx16("p", { children: "Fold uses the displayed root and Minor/Major scale. Existing out-of-scale notes stay visible. Velocity stalks set note strength; overlapping notes keep separate stalks." })
+      helpOpen && /* @__PURE__ */ jsxs17("aside", { className: "cp-help-pop", "aria-label": "Studio help", children: [
+        /* @__PURE__ */ jsx17("button", { type: "button", onClick: () => setHelpOpen(false), children: "Close help \xD7" }),
+        /* @__PURE__ */ jsx17("h3", { children: "Arrangement & notes" }),
+        /* @__PURE__ */ jsx17("p", { children: "Click an empty cell to add, or drag to set its length. First click selects a note; click its selected onset again to delete. Sustain clicks select. Shift-click or right-click deletes one note. Delete / Backspace acts only inside the grid." }),
+        /* @__PURE__ */ jsx17("p", { children: "Drag the loop brace handles to set the active range; click the ruler to seek. Notes outside the range stay in your composition. WAV exports the active range with effect tails. Timing changes stop playback." }),
+        /* @__PURE__ */ jsx17("p", { children: "Solid clips show musical duration. Optional dashed tails show representative buffer allowance, not measured audible duration. Layer levels feed the master; Solo is session-only and Mute wins." }),
+        /* @__PURE__ */ jsx17("p", { children: "Fold uses the displayed root and Minor/Major scale. Existing out-of-scale notes stay visible. Velocity stalks set note strength; overlapping notes keep separate stalks." })
       ] }),
-      /* @__PURE__ */ jsxs16("section", { className: "ss-panel cp-arrangement-panel", children: [
-        /* @__PURE__ */ jsxs16("div", { className: "ss-section-head", children: [
-          /* @__PURE__ */ jsx16("h2", { children: "Arrangement" }),
-          /* @__PURE__ */ jsxs16("span", { className: "ss-muted", children: [
+      /* @__PURE__ */ jsxs17("section", { className: "ss-panel cp-arrangement-panel", children: [
+        /* @__PURE__ */ jsxs17("div", { className: "ss-section-head", children: [
+          /* @__PURE__ */ jsx17("h2", { children: "Arrangement" }),
+          /* @__PURE__ */ jsxs17("span", { className: "ss-muted", children: [
             c.layers.length,
             "/",
             MAX_COMPOSE_LAYERS
           ] }),
-          /* @__PURE__ */ jsx16("button", { ref: editorOpener, type: "button", "aria-expanded": drawer, onClick: () => drawer ? closeEditor() : setDrawer(true), children: drawer ? "Close sound editor" : "Edit sound" }),
-          /* @__PURE__ */ jsxs16("label", { className: "cp-tail-toggle", children: [
-            /* @__PURE__ */ jsx16("input", { type: "checkbox", checked: showTails, onChange: (e) => setShowTails(e.target.checked) }),
+          /* @__PURE__ */ jsx17("button", { ref: editorOpener, type: "button", "aria-expanded": drawer, onClick: () => drawer ? closeEditor() : setDrawer(true), children: drawer ? "Close sound editor" : "Edit sound" }),
+          /* @__PURE__ */ jsxs17("label", { className: "cp-tail-toggle", children: [
+            /* @__PURE__ */ jsx17("input", { type: "checkbox", checked: showTails, onChange: (e) => setShowTails(e.target.checked) }),
             " FX tails"
           ] })
         ] }),
-        /* @__PURE__ */ jsx16("div", { ref: arrangement, className: "cp-arrangement", tabIndex: 0, "aria-label": "Scrollable arrangement", children: /* @__PURE__ */ jsxs16("div", { className: "cp-timeline", style: { minWidth: 220 + loopBeats * 32 }, children: [
-          /* @__PURE__ */ jsxs16("div", { ref: ruler, className: "cp-ruler", "aria-label": "Bar and beat ruler", children: [
-            /* @__PURE__ */ jsx16("span", { children: "TRACK / MIX" }),
-            /* @__PURE__ */ jsxs16("div", { className: "cp-arrangement-scale", style: { gridTemplateColumns: `repeat(${loopBeats},minmax(32px,1fr))` }, children: [
-              Array.from({ length: c.bars }, (_, bar) => /* @__PURE__ */ jsxs16("span", { className: "cp-arrangement-bar", style: { gridColumn: `span ${c.meter}` }, children: [
+        /* @__PURE__ */ jsx17("div", { ref: arrangement, className: "cp-arrangement", tabIndex: 0, "aria-label": "Scrollable arrangement", children: /* @__PURE__ */ jsxs17("div", { className: "cp-timeline", style: { minWidth: 220 + loopBeats * 32 }, children: [
+          /* @__PURE__ */ jsxs17("div", { ref: ruler, className: "cp-ruler", "aria-label": "Bar and beat ruler", children: [
+            /* @__PURE__ */ jsx17("span", { children: "TRACK / MIX" }),
+            /* @__PURE__ */ jsxs17("div", { className: "cp-arrangement-scale", style: { gridTemplateColumns: `repeat(${loopBeats},minmax(32px,1fr))` }, children: [
+              Array.from({ length: c.bars }, (_, bar) => /* @__PURE__ */ jsxs17("span", { className: "cp-arrangement-bar", style: { gridColumn: `span ${c.meter}` }, children: [
                 "Bar ",
                 bar + 1
               ] }, `bar-${bar}`)),
-              Array.from({ length: loopBeats }, (_, i) => /* @__PURE__ */ jsx16("span", { className: "cp-arrangement-beat", "data-bar": i % c.meter === 0, children: i % c.meter + 1 }, i)),
-              /* @__PURE__ */ jsx16(LoopBrace, { start: window2.start, end: window2.end, total: loopBeats, position: snapshot.positionBeat, onChange: setLoop, onSeek: (beat) => audio.seek(beat), begin: () => store.beginGesture(), finish: () => store.endGesture() }, `${scopeKey}:${c.id}:${c.bars}:${c.meter}`)
+              Array.from({ length: loopBeats }, (_, i) => /* @__PURE__ */ jsx17("span", { className: "cp-arrangement-beat", "data-bar": i % c.meter === 0, children: i % c.meter + 1 }, i)),
+              /* @__PURE__ */ jsx17(ComposeLoopBrace, { audio, start: window2.start, end: window2.end, total: loopBeats, onChange: setLoop, onSeek: (beat) => audio.seek(beat), begin: () => store.beginGesture(), finish: () => store.endGesture() }, `${scopeKey}:${c.id}:${c.bars}:${c.meter}`)
             ] })
           ] }),
-          c.layers.map((l, index) => /* @__PURE__ */ jsxs16("div", { ref: l.id === layer2.id ? selectedLane : void 0, className: "cp-lane", "data-selected": l.id === layer2.id, "data-audible": layerAudible(l, solo), style: { "--cp-layer-color": /chord|pad|harmony/i.test(l.name) ? "#55d9de" : /lead|melod/i.test(l.name) ? "#ad91ef" : layerColor(l.id) }, children: [
-            /* @__PURE__ */ jsxs16("div", { className: "cp-track", "data-selected": l.id === layer2.id, children: [
-              /* @__PURE__ */ jsxs16("div", { className: "cp-track-top", children: [
-                /* @__PURE__ */ jsxs16("button", { className: "cp-track-select", type: "button", "aria-pressed": l.id === layer2.id, onClick: () => store.select(l.id), children: [
-                  /* @__PURE__ */ jsxs16("strong", { children: [
+          c.layers.map((l, index) => /* @__PURE__ */ jsxs17("div", { ref: l.id === layer2.id ? selectedLane : void 0, className: "cp-lane", "data-selected": l.id === layer2.id, "data-audible": layerAudible(l, solo), style: { "--cp-layer-color": /chord|pad|harmony/i.test(l.name) ? "#55d9de" : /lead|melod/i.test(l.name) ? "#ad91ef" : layerColor(l.id) }, children: [
+            /* @__PURE__ */ jsxs17("div", { className: "cp-track", "data-selected": l.id === layer2.id, children: [
+              /* @__PURE__ */ jsxs17("div", { className: "cp-track-top", children: [
+                /* @__PURE__ */ jsxs17("button", { className: "cp-track-select", type: "button", "aria-pressed": l.id === layer2.id, onClick: () => store.select(l.id), children: [
+                  /* @__PURE__ */ jsxs17("strong", { children: [
                     String(index + 1).padStart(2, "0"),
                     " \xB7 ",
                     l.name
                   ] }),
-                  /* @__PURE__ */ jsx16("small", { children: l.patch.name })
+                  /* @__PURE__ */ jsx17("small", { children: l.patch.name })
                 ] }),
-                /* @__PURE__ */ jsxs16("details", { className: "cp-track-menu", onClick: (e) => {
+                /* @__PURE__ */ jsxs17("details", { className: "cp-track-menu", onClick: (e) => {
                   if (e.target.closest("button:not(:disabled)")) e.currentTarget.open = false;
                 }, children: [
-                  /* @__PURE__ */ jsx16("summary", { "aria-label": `Actions for ${l.name}`, title: "Duplicate or delete this layer", children: "\xB7\xB7\xB7" }),
-                  /* @__PURE__ */ jsxs16("div", { children: [
-                    /* @__PURE__ */ jsx16("button", { disabled: c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => add({ ...duplicateLayer(l, false), name: `${l.name.slice(0, 75)} copy` }), children: "Duplicate sound" }),
-                    /* @__PURE__ */ jsx16("button", { disabled: c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => add({ ...duplicateLayer(l, true), name: `${l.name.slice(0, 75)} copy` }), children: "Duplicate sound + pattern" }),
-                    /* @__PURE__ */ jsx16("button", { className: "ss-danger", disabled: c.layers.length === 1, onClick: () => deleteLayer(l.id), children: "Delete layer" })
+                  /* @__PURE__ */ jsx17("summary", { "aria-label": `Actions for ${l.name}`, title: "Duplicate or delete this layer", children: "\xB7\xB7\xB7" }),
+                  /* @__PURE__ */ jsxs17("div", { children: [
+                    /* @__PURE__ */ jsx17("button", { disabled: c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => add({ ...duplicateLayer(l, false), name: `${l.name.slice(0, 75)} copy` }), children: "Duplicate sound" }),
+                    /* @__PURE__ */ jsx17("button", { disabled: c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => add({ ...duplicateLayer(l, true), name: `${l.name.slice(0, 75)} copy` }), children: "Duplicate sound + pattern" }),
+                    /* @__PURE__ */ jsx17("button", { className: "ss-danger", disabled: c.layers.length === 1, onClick: () => deleteLayer(l.id), children: "Delete layer" })
                   ] })
                 ] })
               ] }),
-              /* @__PURE__ */ jsxs16("div", { className: "cp-track-controls", children: [
-                /* @__PURE__ */ jsx16("button", { type: "button", title: `Mute ${l.name}`, "aria-label": `Mute ${l.name}`, "aria-pressed": l.muted, onClick: () => mixLayer(l.id, { muted: !l.muted }), children: "M" }),
-                /* @__PURE__ */ jsx16("button", { type: "button", title: `Solo ${l.name}`, "aria-label": `Solo ${l.name}`, "aria-pressed": solo.has(l.id), onClick: () => setSolo((current) => {
+              /* @__PURE__ */ jsxs17("div", { className: "cp-track-controls", children: [
+                /* @__PURE__ */ jsx17("button", { type: "button", title: `Mute ${l.name}`, "aria-label": `Mute ${l.name}`, "aria-pressed": l.muted, onClick: () => mixLayer(l.id, { muted: !l.muted }), children: "M" }),
+                /* @__PURE__ */ jsx17("button", { type: "button", title: `Solo ${l.name}`, "aria-label": `Solo ${l.name}`, "aria-pressed": solo.has(l.id), onClick: () => setSolo((current) => {
                   const next = new Set(current);
                   if (next.has(l.id)) next.delete(l.id);
                   else next.add(l.id);
                   return next;
                 }), children: "S" }),
-                /* @__PURE__ */ jsx16(DragValue, { id: `cp-level-${l.id}`, label: "Level", value: l.gainDb, min: -48, max: 6, step: 0.1, unit: " dB", onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => mixLayer(l.id, { gainDb: v }) }),
-                /* @__PURE__ */ jsx16(ParameterKnob, { id: `cp-pan-${l.id}`, label: "Pan", help: "Stereo position, after the layer level and before master output. Center = 0.", value: l.pan ?? 0, min: -1, max: 1, step: 0.01, onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => mixLayer(l.id, { pan: v }) })
+                /* @__PURE__ */ jsx17(DragValue, { id: `cp-level-${l.id}`, label: "Level", value: l.gainDb, min: -48, max: 6, step: 0.1, unit: " dB", onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => mixLayer(l.id, { gainDb: v }) }),
+                /* @__PURE__ */ jsx17(ParameterKnob, { id: `cp-pan-${l.id}`, label: "Pan", help: "Stereo position, after the layer level and before master output. Center = 0.", value: l.pan ?? 0, min: -1, max: 1, step: 0.01, onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => mixLayer(l.id, { pan: v }) })
               ] }),
-              /* @__PURE__ */ jsx16(TrackMeter, { read: audio.readLevel, id: l.id })
+              /* @__PURE__ */ jsx17(TrackMeter, { read: audio.readLevel, id: l.id })
             ] }),
-            /* @__PURE__ */ jsxs16("div", { className: "cp-clips", style: { "--cp-beat-width": `${100 / loopBeats}%`, "--cp-bar-width": `${100 / c.bars}%` }, children: [
+            /* @__PURE__ */ jsxs17("div", { className: "cp-clips", style: { "--cp-beat-width": `${100 / loopBeats}%`, "--cp-bar-width": `${100 / c.bars}%` }, children: [
               l.notes.filter((n) => n.beat < loopBeats).map((n) => {
                 const body = n.duration, tail = showTails ? (tailSeconds[l.id] ?? 0) * c.tempo / 60 : 0, total = body + tail;
-                return /* @__PURE__ */ jsxs16("button", { type: "button", className: "cp-note", "aria-label": `${l.name}: ${composePitchName(n.pitch)}, bar ${Math.floor(n.beat / c.meter) + 1}, ${beatsLabel(n.duration)}`, "aria-pressed": l.id === layer2.id && n.id === noteId, onClick: () => {
+                return /* @__PURE__ */ jsxs17("button", { type: "button", className: "cp-note", "aria-label": `${l.name}: ${composePitchName(n.pitch)}, bar ${Math.floor(n.beat / c.meter) + 1}, ${beatsLabel(n.duration)}`, "aria-pressed": l.id === layer2.id && n.id === noteId, onClick: () => {
                   if (l.id !== layer2.id) store.select(l.id);
                   setNoteId(n.id);
                   setGridOpen(true);
                   setOverlapCell({ beat: n.beat, pitch: n.pitch });
                   setOctave(Math.floor(n.pitch / 12) - 1);
                 }, style: { left: `${n.beat / loopBeats * 100}%`, width: `${total / loopBeats * 100}%`, top: pitchTop(n.pitch), zIndex: l.id === layer2.id && n.id === noteId ? 2 : 1 }, children: [
-                  /* @__PURE__ */ jsx16("span", { "data-compose-body": "", style: { width: `${body / total * 100}%` }, children: composePitchName(n.pitch) }),
-                  /* @__PURE__ */ jsx16("span", { "data-compose-tail": "", hidden: !showTails, style: { width: `${tail / total * 100}%` } })
+                  /* @__PURE__ */ jsx17("span", { "data-compose-body": "", style: { width: `${body / total * 100}%` }, children: composePitchName(n.pitch) }),
+                  /* @__PURE__ */ jsx17("span", { "data-compose-tail": "", hidden: !showTails, style: { width: `${tail / total * 100}%` } })
                 ] }, n.id);
               }),
-              /* @__PURE__ */ jsx16("i", { className: "cp-playhead", style: { left: `${snapshot.positionBeat / loopBeats * 100}%` } })
+              /* @__PURE__ */ jsx17(ComposePlayhead, { audio, total: loopBeats })
             ] })
           ] }, l.id)),
-          /* @__PURE__ */ jsxs16("div", { className: "cp-add-row", children: [
-            /* @__PURE__ */ jsxs16("details", { className: "cp-add-menu", onClick: (e) => {
+          /* @__PURE__ */ jsxs17("div", { className: "cp-add-row", children: [
+            /* @__PURE__ */ jsxs17("details", { className: "cp-add-menu", onClick: (e) => {
               if (e.target.closest("button:not(:disabled)")) e.currentTarget.open = false;
             }, children: [
-              /* @__PURE__ */ jsx16("summary", { children: "+ Add Layer" }),
-              /* @__PURE__ */ jsxs16("div", { children: [
-                /* @__PURE__ */ jsx16("button", { type: "button", disabled: c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => add(createLayer(void 0, "Blank sound")), children: "Add blank layer" }),
-                /* @__PURE__ */ jsxs16("select", { "aria-label": "New layer from sound preset", value: preset, onChange: (e) => setPreset(e.target.value), children: [
-                  /* @__PURE__ */ jsx16("option", { value: "", children: "Saved sound\u2026" }),
-                  eventStore.state.presets.map((p) => /* @__PURE__ */ jsx16("option", { value: p.id, children: p.name }, p.id))
+              /* @__PURE__ */ jsx17("summary", { children: "+ Add Layer" }),
+              /* @__PURE__ */ jsxs17("div", { children: [
+                /* @__PURE__ */ jsx17("button", { type: "button", disabled: c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => add(createLayer(void 0, "Blank sound")), children: "Add blank layer" }),
+                /* @__PURE__ */ jsxs17("select", { "aria-label": "New layer from sound preset", value: preset, onChange: (e) => setPreset(e.target.value), children: [
+                  /* @__PURE__ */ jsx17("option", { value: "", children: "Saved sound\u2026" }),
+                  eventStore.state.presets.map((p) => /* @__PURE__ */ jsx17("option", { value: p.id, children: p.name }, p.id))
                 ] }),
-                /* @__PURE__ */ jsx16("button", { disabled: !preset || c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => {
+                /* @__PURE__ */ jsx17("button", { disabled: !preset || c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => {
                   const p = eventStore.state.presets.find((item) => item.id === preset);
                   if (p) add(createLayer(p.patch, p.name));
                 }, children: "Add preset layer" })
               ] })
             ] }),
-            /* @__PURE__ */ jsx16("small", { children: c.layers.length >= MAX_COMPOSE_LAYERS ? "Layer limit reached" : "Select a track to edit its pattern below" })
+            /* @__PURE__ */ jsx17("small", { children: c.layers.length >= MAX_COMPOSE_LAYERS ? "Layer limit reached" : "Select a track to edit its pattern below" })
           ] })
         ] }) })
       ] }),
-      /* @__PURE__ */ jsxs16("div", { className: "cp-editing-dock", "data-editor-open": drawer, "data-grid-open": gridOpen, children: [
-        /* @__PURE__ */ jsxs16("section", { ref: gridAnchor, className: "ss-panel cp-grid-panel", tabIndex: -1, "aria-label": "Step grid editor", style: { "--cp-layer-color": layerColor(layer2.id) }, children: [
-          /* @__PURE__ */ jsxs16("div", { className: "ss-section-head", children: [
-            /* @__PURE__ */ jsxs16("button", { type: "button", className: "cp-drawer-toggle", "aria-expanded": gridOpen, onClick: () => setGridOpen(!gridOpen), children: [
+      /* @__PURE__ */ jsxs17("div", { className: "cp-editing-dock", "data-editor-open": drawer, "data-grid-open": gridOpen, children: [
+        /* @__PURE__ */ jsxs17("section", { ref: gridAnchor, className: "ss-panel cp-grid-panel", tabIndex: -1, "aria-label": "Step grid editor", style: { "--cp-layer-color": layerColor(layer2.id) }, children: [
+          /* @__PURE__ */ jsxs17("div", { className: "ss-section-head", children: [
+            /* @__PURE__ */ jsxs17("button", { type: "button", className: "cp-drawer-toggle", "aria-expanded": gridOpen, onClick: () => setGridOpen(!gridOpen), children: [
               gridOpen ? "\u25BE" : "\u25B8",
               " Step Grid \xB7 ",
               layer2.name
             ] }),
-            /* @__PURE__ */ jsxs16("label", { className: "cp-layer-name", children: [
+            /* @__PURE__ */ jsxs17("label", { className: "cp-layer-name", children: [
               "Name ",
-              /* @__PURE__ */ jsx16("input", { "aria-label": "Layer name", type: "text", value: layer2.name, onChange: (e) => editLayer((l) => ({ ...l, name: e.target.value })) })
+              /* @__PURE__ */ jsx17("input", { "aria-label": "Layer name", type: "text", value: layer2.name, onChange: (e) => editLayer((l) => ({ ...l, name: e.target.value })) })
             ] })
           ] }),
-          gridOpen && /* @__PURE__ */ jsxs16("div", { className: "cp-grid-content", children: [
-            /* @__PURE__ */ jsxs16("div", { className: "cp-entry", children: [
-              /* @__PURE__ */ jsxs16("div", { className: "cp-grid-area", children: [
-                /* @__PURE__ */ jsxs16("div", { className: "cp-actions cp-grid-toolbar", children: [
-                  /* @__PURE__ */ jsx16(DragValue, { id: "cp-octave", label: "Octave", value: octave, min: 1, max: 6, step: 1, onChange: (v) => {
+          gridOpen && /* @__PURE__ */ jsxs17("div", { className: "cp-grid-content", children: [
+            /* @__PURE__ */ jsxs17("div", { className: "cp-entry", children: [
+              /* @__PURE__ */ jsxs17("div", { className: "cp-grid-area", children: [
+                /* @__PURE__ */ jsxs17("div", { className: "cp-actions cp-grid-toolbar", children: [
+                  /* @__PURE__ */ jsx17(DragValue, { id: "cp-octave", label: "Octave", value: octave, min: 1, max: 6, step: 1, onChange: (v) => {
                     cancelDrag();
                     setOctave(v);
                   } }),
-                  /* @__PURE__ */ jsx16(DragValue, { id: "cp-note-length", label: "New note", value: noteDuration, min: 0.25, max: 4, step: 0.25, unit: " beats", onChange: setNoteDuration }),
-                  /* @__PURE__ */ jsx16("button", { type: "button", "aria-pressed": fold, onClick: () => setFold(!fold), title: "Fold to scale \xB7 existing out-of-scale notes stay visible", children: "Fold to Scale" }),
-                  /* @__PURE__ */ jsxs16("select", { "aria-label": "Scale", value: scale, onChange: (e) => setScale(e.target.value), children: [
-                    /* @__PURE__ */ jsxs16("option", { value: "minor", children: [
+                  /* @__PURE__ */ jsx17(DragValue, { id: "cp-note-length", label: "New note", value: noteDuration, min: 0.25, max: 4, step: 0.25, unit: " beats", onChange: setNoteDuration }),
+                  /* @__PURE__ */ jsx17("button", { type: "button", "aria-pressed": fold, onClick: () => setFold(!fold), title: "Fold to scale \xB7 existing out-of-scale notes stay visible", children: "Fold to Scale" }),
+                  /* @__PURE__ */ jsxs17("select", { "aria-label": "Scale", value: scale, onChange: (e) => setScale(e.target.value), children: [
+                    /* @__PURE__ */ jsxs17("option", { value: "minor", children: [
                       names[c.root % 12],
                       " Minor"
                     ] }),
-                    /* @__PURE__ */ jsxs16("option", { value: "major", children: [
+                    /* @__PURE__ */ jsxs17("option", { value: "major", children: [
                       names[c.root % 12],
                       " Major"
                     ] })
                   ] }),
-                  /* @__PURE__ */ jsx16("small", { children: note ? `${composePitchName(note.pitch)} \xB7 ${Math.round(note.velocity * 100)}% velocity` : "Select a note" })
+                  /* @__PURE__ */ jsx17("small", { children: note ? `${composePitchName(note.pitch)} \xB7 ${Math.round(note.velocity * 100)}% velocity` : "Select a note" })
                 ] }),
-                /* @__PURE__ */ jsx16("div", { className: "cp-grid-scroll", onScroll: (e) => {
+                /* @__PURE__ */ jsx17("div", { className: "cp-grid-scroll", onScroll: (e) => {
                   const lane = e.currentTarget.nextElementSibling;
                   if (lane) lane.scrollLeft = e.currentTarget.scrollLeft;
                 }, tabIndex: 0, "aria-label": "Step grid", onKeyDown: (e) => {
@@ -9802,19 +9874,19 @@ function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, s
                     e.preventDefault();
                     removeNote(note.id);
                   }
-                }, children: /* @__PURE__ */ jsxs16("div", { className: "cp-grid", style: { gridTemplateColumns: `52px repeat(${steps},minmax(32px,1fr))`, minWidth: 52 + steps * 32 }, children: [
-                  /* @__PURE__ */ jsx16("span", { className: "cp-grid-corner", children: "Bar" }),
-                  Array.from({ length: c.bars }, (_, bar) => /* @__PURE__ */ jsxs16("span", { className: "cp-grid-bar", style: { gridColumn: `span ${c.meter * 2}` }, children: [
+                }, children: /* @__PURE__ */ jsxs17("div", { className: "cp-grid", style: { gridTemplateColumns: `52px repeat(${steps},minmax(32px,1fr))`, minWidth: 52 + steps * 32 }, children: [
+                  /* @__PURE__ */ jsx17("span", { className: "cp-grid-corner", children: "Bar" }),
+                  Array.from({ length: c.bars }, (_, bar) => /* @__PURE__ */ jsxs17("span", { className: "cp-grid-bar", style: { gridColumn: `span ${c.meter * 2}` }, children: [
                     "Bar ",
                     bar + 1
                   ] }, `bar-${bar}`)),
-                  /* @__PURE__ */ jsx16("span", { className: "cp-grid-corner cp-grid-beat-label", children: "Beat / &" }),
-                  Array.from({ length: steps }, (_, i) => /* @__PURE__ */ jsx16("span", { className: "cp-grid-subdivision", "data-bar": i % (c.meter * 2) === 0, children: i % 2 === 0 ? i / 2 % c.meter + 1 : "&" }, i)),
-                  Array.from({ length: 12 }, (_, i) => (octave + 1) * 12 + 11 - i).filter((pitch) => !fold || scaleNotes.includes((pitch - c.root % 12 + 12) % 12) || layer2.notes.some((n) => n.pitch === pitch)).map((pitch) => /* @__PURE__ */ jsxs16(React15.Fragment, { children: [
-                    /* @__PURE__ */ jsx16("span", { className: "cp-grid-pitch", "data-black": [1, 3, 6, 8, 10].includes(pitch % 12), "data-outscale": !scaleNotes.includes((pitch - c.root % 12 + 12) % 12), children: composePitchName(pitch) }),
+                  /* @__PURE__ */ jsx17("span", { className: "cp-grid-corner cp-grid-beat-label", children: "Beat / &" }),
+                  Array.from({ length: steps }, (_, i) => /* @__PURE__ */ jsx17("span", { className: "cp-grid-subdivision", "data-bar": i % (c.meter * 2) === 0, children: i % 2 === 0 ? i / 2 % c.meter + 1 : "&" }, i)),
+                  Array.from({ length: 12 }, (_, i) => (octave + 1) * 12 + 11 - i).filter((pitch) => !fold || scaleNotes.includes((pitch - c.root % 12 + 12) % 12) || noteIndex.pitches.has(pitch)).map((pitch) => /* @__PURE__ */ jsxs17(React16.Fragment, { children: [
+                    /* @__PURE__ */ jsx17("span", { className: "cp-grid-pitch", "data-black": [1, 3, 6, 8, 10].includes(pitch % 12), "data-outscale": !scaleNotes.includes((pitch - c.root % 12 + 12) % 12), children: composePitchName(pitch) }),
                     Array.from({ length: steps }, (_, step) => {
-                      const beat = step / 2, hits = notesInCell(layer2.notes, beat, pitch, noteId), hit = hits[0], coverage = hit ? cellCoverage(hit, beat) : null, ghost = preview?.pitch === pitch ? cellCoverage(preview, beat) : null, selected = !!hit && hit.id === noteId;
-                      return /* @__PURE__ */ jsxs16(
+                      const beat = step / 2, hits = noteIndex.cells.get(pitch)?.get(step) ?? [], hit = hits[0], coverage = hit ? cellCoverage(hit, beat) : null, ghost = preview?.pitch === pitch ? cellCoverage(preview, beat) : null, selected = !!hit && hit.id === noteId;
+                      return /* @__PURE__ */ jsxs17(
                         "button",
                         {
                           type: "button",
@@ -9849,83 +9921,81 @@ function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, s
                           onPointerCancel: cancelDrag,
                           onLostPointerCapture: cancelDrag,
                           children: [
-                            coverage && /* @__PURE__ */ jsx16("span", { className: "cp-grid-body", "data-note-onset": coverage.onset, style: { left: `${coverage.left * 100}%`, width: `${coverage.width * 100}%` }, "aria-hidden": "true", children: coverage.onset ? selected ? "\u25C6" : "\u25CF" : "\u2501" }),
-                            ghost && /* @__PURE__ */ jsx16("span", { className: "cp-grid-preview", "data-note-preview": "", style: { left: `${ghost.left * 100}%`, width: `${ghost.width * 100}%` }, "aria-hidden": "true" }),
-                            hits.length > 1 && /* @__PURE__ */ jsx16("small", { className: "cp-overlap-count", "aria-hidden": "true", children: hits.length })
+                            coverage && /* @__PURE__ */ jsx17("span", { className: "cp-grid-body", "data-note-onset": coverage.onset, style: { left: `${coverage.left * 100}%`, width: `${coverage.width * 100}%` }, "aria-hidden": "true", children: coverage.onset ? selected ? "\u25C6" : "\u25CF" : "\u2501" }),
+                            ghost && /* @__PURE__ */ jsx17("span", { className: "cp-grid-preview", "data-note-preview": "", style: { left: `${ghost.left * 100}%`, width: `${ghost.width * 100}%` }, "aria-hidden": "true" }),
+                            hits.length > 1 && /* @__PURE__ */ jsx17("small", { className: "cp-overlap-count", "aria-hidden": "true", children: hits.length })
                           ]
                         },
                         step
                       );
                     })
                   ] }, pitch)),
-                  /* @__PURE__ */ jsx16("i", { className: "cp-grid-playhead", "aria-hidden": "true", style: { left: `calc(52px + (100% - 52px) * ${snapshot.positionBeat / loopBeats})` } })
+                  /* @__PURE__ */ jsx17(ComposePlayhead, { audio, total: loopBeats, grid: true })
                 ] }) }),
-                /* @__PURE__ */ jsx16("div", { className: "cp-velocity-scroll", children: /* @__PURE__ */ jsxs16("div", { className: "cp-velocity-lane", "aria-label": "Note velocity lane", style: { minWidth: 52 + steps * 32 }, children: [
-                  /* @__PURE__ */ jsx16("span", { children: "VEL" }),
-                  /* @__PURE__ */ jsx16("div", { children: layer2.notes.filter((n) => n.beat < loopBeats).map((n, index, all) => {
-                    const group = all.filter((other) => other.beat === n.beat), offset = group.findIndex((other) => other.id === n.id);
-                    return /* @__PURE__ */ jsx16("input", { type: "range", "aria-label": `Velocity ${composePitchName(n.pitch)} at beat ${Number(n.beat.toFixed(2))}`, title: `${composePitchName(n.pitch)} \xB7 ${Math.round(n.velocity * 100)}% \xB7 drag stalk to set velocity`, min: 0.1, max: 1, step: 0.05, value: n.velocity, style: { left: `calc(${n.beat / loopBeats * 100}% + ${offset * 8}px)`, "--velocity": `${n.velocity * 100}%` }, onPointerDown: () => {
+                /* @__PURE__ */ jsx17("div", { className: "cp-velocity-scroll", children: /* @__PURE__ */ jsxs17("div", { className: "cp-velocity-lane", "aria-label": "Note velocity lane", style: { minWidth: 52 + steps * 32 }, children: [
+                  /* @__PURE__ */ jsx17("span", { children: "VEL" }),
+                  /* @__PURE__ */ jsx17("div", { children: noteIndex.velocity.map(({ note: n, offset }) => {
+                    return /* @__PURE__ */ jsx17("input", { type: "range", "aria-label": `Velocity ${composePitchName(n.pitch)} at beat ${Number(n.beat.toFixed(2))}`, title: `${composePitchName(n.pitch)} \xB7 ${Math.round(n.velocity * 100)}% \xB7 drag stalk to set velocity`, min: 0.1, max: 1, step: 0.05, value: n.velocity, style: { left: `calc(${n.beat / loopBeats * 100}% + ${offset * 8}px)`, "--velocity": `${n.velocity * 100}%` }, onPointerDown: () => {
                       store.beginGesture();
                       setNoteId(n.id);
                     }, onPointerUp: () => store.endGesture(), onPointerCancel: () => store.endGesture(), onBlur: () => store.endGesture(), onChange: (e) => editLayer((l) => ({ ...l, notes: l.notes.map((row) => row.id === n.id ? { ...row, velocity: Number(e.target.value) } : row) })) }, n.id);
                   }) })
                 ] }) }),
-                overlaps.length > 1 && /* @__PURE__ */ jsxs16("div", { className: "cp-actions", children: [
-                  /* @__PURE__ */ jsxs16("span", { children: [
+                overlaps.length > 1 && /* @__PURE__ */ jsxs17("div", { className: "cp-actions", children: [
+                  /* @__PURE__ */ jsxs17("span", { children: [
                     overlaps.findIndex((n) => n.id === noteId) + 1,
                     "/",
                     overlaps.length,
                     " overlapping"
                   ] }),
-                  /* @__PURE__ */ jsx16("button", { onClick: () => cycleOverlap(-1), children: "Previous" }),
-                  /* @__PURE__ */ jsx16("button", { onClick: () => cycleOverlap(1), children: "Next" })
+                  /* @__PURE__ */ jsx17("button", { onClick: () => cycleOverlap(-1), children: "Previous" }),
+                  /* @__PURE__ */ jsx17("button", { onClick: () => cycleOverlap(1), children: "Next" })
                 ] })
               ] }),
-              /* @__PURE__ */ jsxs16("aside", { className: "cp-note-editor", "aria-label": "Selected note", children: [
-                /* @__PURE__ */ jsx16("h3", { children: note ? `${composePitchName(note.pitch)} \xB7 selected note` : "Select a note in the grid or arrangement" }),
-                note ? /* @__PURE__ */ jsxs16(Fragment7, { children: [
-                  /* @__PURE__ */ jsx16(NumericControl, { scopeIdentity: `${scopeKey}:${c.id}:${layer2.id}:${note.id}`, id: "cp-note-pitch", label: "Pitch (MIDI)", value: note.pitch, min: 28, max: 84, step: 1, help: "Absolute pitch before effects.", onChange: (v) => editNote((n) => ({ ...n, pitch: v })) }, `${layer2.id}-${note.id}-pitch`),
-                  noteOut ? /* @__PURE__ */ jsxs16("div", { className: "cp-stored-length", children: [
-                    /* @__PURE__ */ jsxs16("strong", { children: [
+              /* @__PURE__ */ jsxs17("aside", { className: "cp-note-editor", "aria-label": "Selected note", children: [
+                /* @__PURE__ */ jsx17("h3", { children: note ? `${composePitchName(note.pitch)} \xB7 selected note` : "Select a note in the grid or arrangement" }),
+                note ? /* @__PURE__ */ jsxs17(Fragment8, { children: [
+                  /* @__PURE__ */ jsx17(NumericControl, { scopeIdentity: `${scopeKey}:${c.id}:${layer2.id}:${note.id}`, id: "cp-note-pitch", label: "Pitch (MIDI)", value: note.pitch, min: 28, max: 84, step: 1, help: "Absolute pitch before effects.", onChange: (v) => editNote((n) => ({ ...n, pitch: v })) }, `${layer2.id}-${note.id}-pitch`),
+                  noteOut ? /* @__PURE__ */ jsxs17("div", { className: "cp-stored-length", children: [
+                    /* @__PURE__ */ jsxs17("strong", { children: [
                       "Stored length: ",
                       beatsLabel(note.duration)
                     ] }),
-                    /* @__PURE__ */ jsxs16("p", { children: [
+                    /* @__PURE__ */ jsxs17("p", { children: [
                       "Crossing / outside loop; not trimmed. ",
                       noteLimit === null ? "Fit moves its onset to the final eighth-note step." : "Fit shortens to the visible loop end."
                     ] }),
-                    /* @__PURE__ */ jsx16("button", { type: "button", onClick: () => editNote((n) => {
+                    /* @__PURE__ */ jsx17("button", { type: "button", onClick: () => editNote((n) => {
                       const beat = n.beat > loopBeats - 0.25 ? loopBeats - 0.5 : n.beat;
                       return { ...n, beat, duration: visibleDuration(beat, loopBeats, n.duration) };
                     }), children: "Fit selected note to loop" })
-                  ] }) : /* @__PURE__ */ jsx16(NumericControl, { scopeIdentity: `${scopeKey}:${c.id}:${layer2.id}:${note.id}`, id: "cp-note-duration", label: "Length", value: note.duration, min: 0.25, max: noteLimit, step: 0.25, unit: note.duration === 1 ? " beat" : " beats", help: "Quarter-beat lengths, bounded to four beats and the visible loop.", onChange: (v) => editNote((n) => ({ ...n, duration: visibleDuration(n.beat, loopBeats, v) })) }, `${layer2.id}-${note.id}-duration`),
-                  /* @__PURE__ */ jsx16(NumericControl, { scopeIdentity: `${scopeKey}:${c.id}:${layer2.id}:${note.id}`, id: "cp-note-velocity", label: "Velocity", value: note.velocity, min: 0.1, max: 1, step: 0.05, help: "Note intensity, independent of layer balance.", onChange: (v) => editNote((n) => ({ ...n, velocity: v })) }, `${layer2.id}-${note.id}-velocity`),
-                  /* @__PURE__ */ jsxs16("p", { className: "cp-note-summary", children: [
+                  ] }) : /* @__PURE__ */ jsx17(NumericControl, { scopeIdentity: `${scopeKey}:${c.id}:${layer2.id}:${note.id}`, id: "cp-note-duration", label: "Length", value: note.duration, min: 0.25, max: noteLimit, step: 0.25, unit: note.duration === 1 ? " beat" : " beats", help: "Quarter-beat lengths, bounded to four beats and the visible loop.", onChange: (v) => editNote((n) => ({ ...n, duration: visibleDuration(n.beat, loopBeats, v) })) }, `${layer2.id}-${note.id}-duration`),
+                  /* @__PURE__ */ jsx17(NumericControl, { scopeIdentity: `${scopeKey}:${c.id}:${layer2.id}:${note.id}`, id: "cp-note-velocity", label: "Velocity", value: note.velocity, min: 0.1, max: 1, step: 0.05, help: "Note intensity, independent of layer balance.", onChange: (v) => editNote((n) => ({ ...n, velocity: v })) }, `${layer2.id}-${note.id}-velocity`),
+                  /* @__PURE__ */ jsxs17("p", { className: "cp-note-summary", children: [
                     "Note body incl. release ",
                     selectedTiming.patch.duration.toFixed(2),
                     " s",
                     showTails ? ` \xB7 representative buffer allowance ${tailSeconds[layer2.id] === void 0 ? "pending" : `${tailSeconds[layer2.id].toFixed(2)} s`}` : "",
                     selectedTiming.clamped ? " \xB7 musical body clamped to renderer limit" : ""
                   ] }),
-                  /* @__PURE__ */ jsx16("button", { type: "button", onClick: () => removeNote(note.id), children: "Delete selected note" })
+                  /* @__PURE__ */ jsx17("button", { type: "button", onClick: () => removeNote(note.id), children: "Delete selected note" })
                 ] }) : null
               ] })
             ] }),
-            retained.length > 0 && /* @__PURE__ */ jsxs16("small", { className: "ss-notice", children: [
+            retained.length > 0 && /* @__PURE__ */ jsxs17("small", { className: "ss-notice", children: [
               retained.length,
               " notes crossing / outside the full timeline retained. Select in Arrangement to inspect."
             ] })
           ] })
         ] }),
-        drawer && /* @__PURE__ */ jsx16("div", { className: "cp-editor-anchor", children: /* @__PURE__ */ jsx16(ParameterScope, { identity: `${scopeKey}:${c.id}:${layer2.id}`, children: /* @__PURE__ */ jsx16(ComposeSoundEditor, { layer: layer2, edit, begin: () => store.beginGesture(), end: () => store.endGesture(), onUndo: undo, onClose: closeEditor }, layer2.id) }, `${scopeKey}:${c.id}:${layer2.id}`) })
+        drawer && /* @__PURE__ */ jsx17("div", { className: "cp-editor-anchor", children: /* @__PURE__ */ jsx17(ParameterScope, { identity: `${scopeKey}:${c.id}:${layer2.id}`, children: /* @__PURE__ */ jsx17(ComposeSoundEditor, { layer: layer2, edit, begin: () => store.beginGesture(), end: () => store.endGesture(), onUndo: undo, onClose: closeEditor }, layer2.id) }, `${scopeKey}:${c.id}:${layer2.id}`) })
       ] }),
-      /* @__PURE__ */ jsxs16("footer", { className: "cp-statusbar", children: [
-        /* @__PURE__ */ jsx16("span", { role: "status", children: notice || statusHint }),
-        /* @__PURE__ */ jsxs16("span", { title: `Playback revision ${snapshot.appliedRevision} \u2192 ${snapshot.requestedRevision}`, children: [
+      /* @__PURE__ */ jsxs17("footer", { className: "cp-statusbar", children: [
+        /* @__PURE__ */ jsx17("span", { role: "status", children: notice || statusHint }),
+        /* @__PURE__ */ jsxs17("span", { title: `Playback revision ${snapshot.appliedRevision} \u2192 ${snapshot.requestedRevision}`, children: [
           snapshot.playing ? "PLAYING" : snapshot.pending ? "PREPARING" : readiness.split(" \xB7 ")[0],
           " \xB7 ",
-          snapshot.positionBeat.toFixed(1),
-          " beats",
+          /* @__PURE__ */ jsx17(ComposePosition, { audio }),
           snapshot.updating ? snapshot.applyAtBeat === null ? " \xB7 Preparing update" : " \xB7 Updating next bar" : ""
         ] })
       ] })
@@ -11758,47 +11828,47 @@ function createStudioAudioSession(store) {
 }
 
 // desktop-src/plugin.tsx
-import { jsx as jsx17, jsxs as jsxs17 } from "react/jsx-runtime";
+import { jsx as jsx18, jsxs as jsxs18 } from "react/jsx-runtime";
 var scopeAtoms = () => [host.state.focusedSessionOwner, host.state.focusedSessionId, host.state.gateway, host.state.profile, host.state.connectionId, host.state.cwd].filter((atom) => !!atom);
 function scope() {
   const profile = host.state.profile.get() || "default", connection = host.state.connectionId.get() ?? "local", session = host.state.focusedSessionId.get(), owner = host.state.focusedSessionOwner.get(), gateway = host.state.gateway.get(), cwd = host.state.cwd?.get?.() ?? "";
   return { profile, connection, key: JSON.stringify([profile, connection, session, owner, gateway, cwd]) };
 }
 function useScopeKey() {
-  return useSyncExternalStore3((fn) => {
+  return useSyncExternalStore4((fn) => {
     const offs = scopeAtoms().map((atom) => atom.listen(fn));
     return () => offs.forEach((off) => off());
   }, () => scope().key, () => scope().key);
 }
 function StatusChip({ previewBridge, desktopTarget }) {
-  const preview = useSyncExternalStore3(previewBridge.subscribe, previewBridge.getSnapshot, previewBridge.getSnapshot), desktop = useSyncExternalStore3(desktopTarget.subscribe, desktopTarget.getSnapshot, desktopTarget.getSnapshot), scopeKey = useScopeKey();
+  const preview = useSyncExternalStore4(previewBridge.subscribe, previewBridge.getSnapshot, previewBridge.getSnapshot), desktop = useSyncExternalStore4(desktopTarget.subscribe, desktopTarget.getSnapshot, desktopTarget.getSnapshot), scopeKey = useScopeKey();
   if (desktop.enabled || desktop.pending) {
     const audio2 = desktop.audio, active2 = !audio2.muted && audio2.activeVoices > 0, status2 = desktop.error ? "Error" : desktop.pending ? "Enabling" : audio2.muted ? "Muted" : audio2.contextState === "running" ? "On" : "Paused";
-    return /* @__PURE__ */ jsxs17("span", { "data-sonic-chip": "", "data-desktop-sound-controls": "", "data-active": active2, title: "Hermes Desktop \xB7 Sound Design event assignments", children: [
-      /* @__PURE__ */ jsx17("span", { className: "sonic-chip-led", "data-active": active2, "aria-hidden": "true" }),
-      /* @__PURE__ */ jsxs17("span", { children: [
+    return /* @__PURE__ */ jsxs18("span", { "data-sonic-chip": "", "data-desktop-sound-controls": "", "data-active": active2, title: "Hermes Desktop \xB7 Sound Design event assignments", children: [
+      /* @__PURE__ */ jsx18("span", { className: "sonic-chip-led", "data-active": active2, "aria-hidden": "true" }),
+      /* @__PURE__ */ jsxs18("span", { children: [
         "Desktop sounds: ",
         status2
       ] }),
-      /* @__PURE__ */ jsx17("button", { type: "button", "aria-label": audio2.muted ? "Unmute desktop sounds" : "Mute desktop sounds", disabled: audio2.contextState !== "running" || desktop.pending, "aria-pressed": audio2.muted, onClick: () => desktopTarget.setMuted(!audio2.muted), children: audio2.muted ? "\u2298" : "\u266A" }),
-      /* @__PURE__ */ jsx17("button", { type: "button", "aria-label": "Disable desktop sounds", onClick: () => desktopTarget.disable(), children: "\xD7" })
+      /* @__PURE__ */ jsx18("button", { type: "button", "aria-label": audio2.muted ? "Unmute desktop sounds" : "Mute desktop sounds", disabled: audio2.contextState !== "running" || desktop.pending, "aria-pressed": audio2.muted, onClick: () => desktopTarget.setMuted(!audio2.muted), children: audio2.muted ? "\u2298" : "\u266A" }),
+      /* @__PURE__ */ jsx18("button", { type: "button", "aria-label": "Disable desktop sounds", onClick: () => desktopTarget.disable(), children: "\xD7" })
     ] });
   }
   const audio = preview.scopeKey === scopeKey ? preview.audio : null, active = !!audio?.enabled && !audio.muted && audio.activeVoices > 0, status = active ? "playing" : studioAudioStatus(audio), disabled = !audio || audio.contextState !== "running" || !!audio.error;
-  return /* @__PURE__ */ jsxs17("span", { "data-sonic-chip": "", "data-active": active, title: `Local Sound Studio preview \xB7 ${status}`, children: [
-    /* @__PURE__ */ jsx17("span", { className: "sonic-chip-led", "data-active": active, "aria-hidden": "true" }),
-    /* @__PURE__ */ jsxs17("span", { children: [
+  return /* @__PURE__ */ jsxs18("span", { "data-sonic-chip": "", "data-active": active, title: `Local Sound Studio preview \xB7 ${status}`, children: [
+    /* @__PURE__ */ jsx18("span", { className: "sonic-chip-led", "data-active": active, "aria-hidden": "true" }),
+    /* @__PURE__ */ jsxs18("span", { children: [
       "Studio preview: ",
       status
     ] }),
-    /* @__PURE__ */ jsx17("button", { type: "button", disabled, "aria-label": audio?.muted ? "Unmute Studio preview" : "Mute Studio preview", "aria-pressed": audio?.muted ?? true, onClick: () => {
+    /* @__PURE__ */ jsx18("button", { type: "button", disabled, "aria-label": audio?.muted ? "Unmute Studio preview" : "Mute Studio preview", "aria-pressed": audio?.muted ?? true, onClick: () => {
       if (audio && scope().key === scopeKey) previewBridge.setMuted(scopeKey, preview, !audio.muted);
     }, children: audio?.muted ? "\u2298" : "\u266A" })
   ] });
 }
 function SoundStudioRoute({ store, composeStore, previewBridge, desktopTarget, backgroundDrafts, writeClipboard, audioSession }) {
   const scopeKey = useScopeKey();
-  return /* @__PURE__ */ jsx17(SoundWorkspace, { scopeKey, store, composeStore, previewBridge, desktopTarget, backgroundDrafts, writeClipboard, audioSession }, scopeKey);
+  return /* @__PURE__ */ jsx18(SoundWorkspace, { scopeKey, store, composeStore, previewBridge, desktopTarget, backgroundDrafts, writeClipboard, audioSession }, scopeKey);
 }
 var plugin_default = {
   id: "hermes-sonic-ui",
@@ -11832,9 +11902,9 @@ var plugin_default = {
       }
     };
     const offAtoms = scopeAtoms().map((atom) => atom.listen(syncScope)), offEvents = ctx.onEvent("*", (event) => desktopTarget.handleEvent(event));
-    ctx.register({ id: "sound-studio", area: ROUTES_AREA, data: { path: "/sonic-ui" }, render: () => /* @__PURE__ */ jsx17(SoundStudioRoute, { store, composeStore, previewBridge, desktopTarget, backgroundDrafts, writeClipboard: (text3) => ctx.os.writeClipboard(text3), audioSession }) });
+    ctx.register({ id: "sound-studio", area: ROUTES_AREA, data: { path: "/sonic-ui" }, render: () => /* @__PURE__ */ jsx18(SoundStudioRoute, { store, composeStore, previewBridge, desktopTarget, backgroundDrafts, writeClipboard: (text3) => ctx.os.writeClipboard(text3), audioSession }) });
     ctx.register({ id: "navigation", area: SIDEBAR_NAV_AREA, data: { path: "/sonic-ui", label: "Sound Studio", codicon: "pulse" } });
-    ctx.register({ id: "audio-controls", area: STATUSBAR_AREAS.right, order: 125, render: () => /* @__PURE__ */ jsx17(StatusChip, { previewBridge, desktopTarget }) });
+    ctx.register({ id: "audio-controls", area: STATUSBAR_AREAS.right, order: 125, render: () => /* @__PURE__ */ jsx18(StatusChip, { previewBridge, desktopTarget }) });
     ctx.onDispose(() => {
       removeStyles();
       previewBridge.clear();

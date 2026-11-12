@@ -1,4 +1,4 @@
-import React,{useEffect,useRef,useState,useSyncExternalStore} from 'react';
+import React,{useEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
 import {renderSoundPatch,type SoundPatch} from '../assets/studio-engine';
 import {SoundStudioView} from './studio-ui';
 import type {BackgroundDrafts} from './studio-background-draft';
@@ -9,11 +9,12 @@ import type {DesktopSoundTarget} from './studio-desktop-target';
 import {ComposeSoundEditor} from './compose-sound-editor';
 import {NumericControl,ParameterScope,DragValue,ParameterKnob} from './studio-components';
 import {useInlineConfirmation} from './studio-confirmation';
-import {notesInCell,gridAction,visibleDuration,cellCoverage,pitchTop,layerColor,layerAudible,transposeRoot,timingChanged} from './compose-view-model';
+import {composeEditorSnapshot,indexComposeNotes,notesInCell,gridAction,visibleDuration,cellCoverage,pitchTop,layerColor,layerAudible,transposeRoot,timingChanged} from './compose-view-model';
 import {parsePitchName} from './studio-musical';
 import {StudioTopbar} from './studio-topbar';
-import {TrackMeter,LoopBrace} from './studio-feedback';
-import {createLayer,duplicateLayer,MAX_COMPOSE_LAYERS,validateComposition,loopWindow,type Composition,type ComposeLayer,type ComposeNote} from './compose-model';
+import {TrackMeter} from './studio-feedback';
+import {ComposePlayhead,ComposePosition,ComposeLoopBrace} from './compose-playhead';
+import {createLayer,duplicateLayer,MAX_COMPOSE_BARS,MAX_COMPOSE_LAYERS,validateComposition,loopWindow,type Composition,type ComposeLayer,type ComposeNote} from './compose-model';
 import {JsonFileImport} from './studio-json-picker';
 import type {ComposeStore} from './compose-store';
 import {ComposeAudio,adaptComposeNote} from './compose-audio';
@@ -44,13 +45,16 @@ export function ComposeWorkspace({store,eventStore,writeClipboard,taskNavigation
  useSyncExternalStore(store.subscribe,store.getSnapshot,store.getSnapshot);
  useSyncExternalStore(eventStore.subscribe,eventStore.getSnapshot,eventStore.getSnapshot);
  const state=store.state,c=state.composition,layer=c.layers.find(l=>l.id===c.selectedLayer)!;
- const [audio]=useState(()=>audioInstance??new ComposeAudio()),snapshot=useSyncExternalStore(audio.subscribe,audio.getSnapshot,audio.getSnapshot);
+ const [audio]=useState(()=>audioInstance??new ComposeAudio());
+ const editorSnapshot=useMemo(()=>composeEditorSnapshot(audio.getSnapshot),[audio]);
+ const snapshot=useSyncExternalStore(audio.subscribe,editorSnapshot,editorSnapshot);
  const [gridOpen,setGridOpen]=useState(true),[fold,setFold]=useState(false),[scale,setScale]=useState<'minor'|'major'>('minor'),[helpOpen,setHelpOpen]=useState(false);
  const [statusHint,setStatusHint]=useState('Drag values vertically · double-click to type · edits are silent');
  useEffect(()=>{if(!helpOpen||typeof document==='undefined')return;const dismiss=(e:PointerEvent|KeyboardEvent)=>{if(e instanceof KeyboardEvent){if(e.key!=='Escape')return;setHelpOpen(false);document.querySelector<HTMLButtonElement>('[data-studio-help-toggle]')?.focus();}else if(!(e.target as HTMLElement).closest('.cp-help-pop,[data-studio-help-toggle]'))setHelpOpen(false);};document.addEventListener('pointerdown',dismiss);document.addEventListener('keydown',dismiss);return()=>{document.removeEventListener('pointerdown',dismiss);document.removeEventListener('keydown',dismiss);};},[helpOpen]);
  const [notice,setNotice]=useState(''),[error,setError]=useState(''),[saveName,setSaveName]=useState(c.name),[drawer,setDrawer]=useState(false);
  const [noteId,setNoteId]=useState<string|null>(null),[noteDuration,setNoteDuration]=useState(1),[octave,setOctave]=useState(3),[preset,setPreset]=useState(''),[tailSeconds,setTailSeconds]=useState<Record<string,number>>({}),[showTails,setShowTails]=useState(false);
  const note=layer.notes.find(n=>n.id===noteId)??null,loopBeats=c.bars*c.meter,steps=loopBeats*2;
+ const noteIndex=useMemo(()=>indexComposeNotes(layer.notes,loopBeats,noteId),[layer.notes,loopBeats,noteId]);
  const previousLayer=useRef(layer.id),editorOpener=useRef<HTMLButtonElement>(null);
  const [solo,setSolo]=useState<ReadonlySet<string>>(()=>new Set()),[preview,setPreview]=useState<ComposeNote|null>(null),[overlapCell,setOverlapCell]=useState<{beat:number;pitch:number}|null>(null);
  const drag=useRef<GridDrag|null>(null),suppressClick=useRef<{beat:number;pitch:number}|null>(null);
@@ -147,7 +151,7 @@ export function ComposeWorkspace({store,eventStore,writeClipboard,taskNavigation
      <DragValue id="cp-tempo" label="Tempo" value={c.tempo} min={60} max={200} step={1} unit=" BPM" onGestureStart={()=>store.beginGesture()} onGestureEnd={()=>store.endGesture()} onChange={v=>change(value=>({...value,tempo:v}))}/>
      <DragValue id="cp-meter" label="Meter" value={c.meter} min={3} max={4} step={1} display={v=>`${v}/4`} onChange={v=>setTiming(c.bars,v as 3|4)}/>
      <DragValue id="cp-root" label="Root" value={c.root} min={36} max={72} step={1} display={composePitchName} parse={parsePitchName} onGestureStart={()=>store.beginGesture()} onGestureEnd={()=>store.endGesture()} onChange={v=>change(value=>transposeRoot(value,v))}/>
-     <DragValue id="cp-bars" label="Loop length" value={c.bars} min={1} max={4} step={1} unit=" Bars" onChange={v=>setTiming(v,c.meter)}/>
+     <DragValue id="cp-bars" label="Loop length" value={c.bars} min={1} max={MAX_COMPOSE_BARS} step={1} unit=" Bars" onChange={v=>setTiming(v,c.meter)}/>
     </section><div className="cp-export-actions">{wavAction}<button type="button" aria-label="Studio help" data-studio-help-toggle="" aria-expanded={helpOpen} onClick={()=>setHelpOpen(!helpOpen)}>?</button></div>
    </div>
    {helpOpen&&<aside className="cp-help-pop" aria-label="Studio help"><button type="button" onClick={()=>setHelpOpen(false)}>Close help ×</button><h3>Arrangement &amp; notes</h3><p>Click an empty cell to add, or drag to set its length. First click selects a note; click its selected onset again to delete. Sustain clicks select. Shift-click or right-click deletes one note. Delete / Backspace acts only inside the grid.</p><p>Drag the loop brace handles to set the active range; click the ruler to seek. Notes outside the range stay in your composition. WAV exports the active range with effect tails. Timing changes stop playback.</p><p>Solid clips show musical duration. Optional dashed tails show representative buffer allowance, not measured audible duration. Layer levels feed the master; Solo is session-only and Mute wins.</p><p>Fold uses the displayed root and Minor/Major scale. Existing out-of-scale notes stay visible. Velocity stalks set note strength; overlapping notes keep separate stalks.</p></aside>}
@@ -156,7 +160,7 @@ export function ComposeWorkspace({store,eventStore,writeClipboard,taskNavigation
      <div ref={ruler} className="cp-ruler" aria-label="Bar and beat ruler"><span>TRACK / MIX</span><div className="cp-arrangement-scale" style={{gridTemplateColumns:`repeat(${loopBeats},minmax(32px,1fr))`}}>
       {Array.from({length:c.bars},(_,bar)=><span key={`bar-${bar}`} className="cp-arrangement-bar" style={{gridColumn:`span ${c.meter}`}}>Bar {bar+1}</span>)}
       {Array.from({length:loopBeats},(_,i)=><span className="cp-arrangement-beat" data-bar={i%c.meter===0} key={i}>{i%c.meter+1}</span>)}
-      <LoopBrace key={`${scopeKey}:${c.id}:${c.bars}:${c.meter}`} start={window.start} end={window.end} total={loopBeats} position={snapshot.positionBeat} onChange={setLoop} onSeek={beat=>audio.seek(beat)} begin={()=>store.beginGesture()} finish={()=>store.endGesture()}/>
+      <ComposeLoopBrace audio={audio} key={`${scopeKey}:${c.id}:${c.bars}:${c.meter}`} start={window.start} end={window.end} total={loopBeats} onChange={setLoop} onSeek={beat=>audio.seek(beat)} begin={()=>store.beginGesture()} finish={()=>store.endGesture()}/>
      </div></div>
      {c.layers.map((l,index)=><div ref={l.id===layer.id?selectedLane:undefined} className="cp-lane" key={l.id} data-selected={l.id===layer.id} data-audible={layerAudible(l,solo)} style={{'--cp-layer-color':/chord|pad|harmony/i.test(l.name)?'#55d9de':/lead|melod/i.test(l.name)?'#ad91ef':layerColor(l.id)} as React.CSSProperties}>
       <div className="cp-track" data-selected={l.id===layer.id}><div className="cp-track-top"><button className="cp-track-select" type="button" aria-pressed={l.id===layer.id} onClick={()=>store.select(l.id)}><strong>{String(index+1).padStart(2,'0')} · {l.name}</strong><small>{l.patch.name}</small></button>
@@ -168,7 +172,7 @@ export function ComposeWorkspace({store,eventStore,writeClipboard,taskNavigation
       </div>
       <div className="cp-clips" style={{'--cp-beat-width':`${100/loopBeats}%`,'--cp-bar-width':`${100/c.bars}%`} as React.CSSProperties}>
        {l.notes.filter(n=>n.beat<loopBeats).map(n=>{const body=n.duration,tail=showTails?(tailSeconds[l.id]??0)*c.tempo/60:0,total=body+tail;return <button key={n.id} type="button" className="cp-note" aria-label={`${l.name}: ${composePitchName(n.pitch)}, bar ${Math.floor(n.beat/c.meter)+1}, ${beatsLabel(n.duration)}`} aria-pressed={l.id===layer.id&&n.id===noteId} onClick={()=>{if(l.id!==layer.id)store.select(l.id);setNoteId(n.id);setGridOpen(true);setOverlapCell({beat:n.beat,pitch:n.pitch});setOctave(Math.floor(n.pitch/12)-1);}} style={{left:`${n.beat/loopBeats*100}%`,width:`${total/loopBeats*100}%`,top:pitchTop(n.pitch),zIndex:l.id===layer.id&&n.id===noteId?2:1}}><span data-compose-body="" style={{width:`${body/total*100}%`}}>{composePitchName(n.pitch)}</span><span data-compose-tail="" hidden={!showTails} style={{width:`${tail/total*100}%`}}/></button>})}
-       <i className="cp-playhead" style={{left:`${snapshot.positionBeat/loopBeats*100}%`}}/>
+       <ComposePlayhead audio={audio} total={loopBeats}/>
       </div>
      </div>)}
      <div className="cp-add-row"><details className="cp-add-menu" onClick={e=>{if((e.target as HTMLElement).closest('button:not(:disabled)'))e.currentTarget.open=false;}}><summary>+ Add Layer</summary><div><button type="button" disabled={c.layers.length>=MAX_COMPOSE_LAYERS} onClick={()=>add(createLayer(undefined,'Blank sound'))}>Add blank layer</button><select aria-label="New layer from sound preset" value={preset} onChange={e=>setPreset(e.target.value)}><option value="">Saved sound…</option>{eventStore.state.presets.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><button disabled={!preset||c.layers.length>=MAX_COMPOSE_LAYERS} onClick={()=>{const p=eventStore.state.presets.find(item=>item.id===preset);if(p)add(createLayer(p.patch,p.name));}}>Add preset layer</button></div></details><small>{c.layers.length>=MAX_COMPOSE_LAYERS?'Layer limit reached':'Select a track to edit its pattern below'}</small></div>
@@ -186,17 +190,17 @@ export function ComposeWorkspace({store,eventStore,writeClipboard,taskNavigation
      </div>
      <div className="cp-grid-scroll" onScroll={e=>{const lane=e.currentTarget.nextElementSibling;if(lane)lane.scrollLeft=e.currentTarget.scrollLeft;}} tabIndex={0} aria-label="Step grid" onKeyDown={e=>{const target=e.target as HTMLElement;if((e.key==='Delete'||e.key==='Backspace')&&!['INPUT','TEXTAREA','SELECT'].includes(target.tagName)&&!target.isContentEditable&&note){e.preventDefault();removeNote(note.id);}}}>
      <div className="cp-grid" style={{gridTemplateColumns:`52px repeat(${steps},minmax(32px,1fr))`,minWidth:52+steps*32}}><span className="cp-grid-corner">Bar</span>{Array.from({length:c.bars},(_,bar)=><span key={`bar-${bar}`} className="cp-grid-bar" style={{gridColumn:`span ${c.meter*2}`}}>Bar {bar+1}</span>)}<span className="cp-grid-corner cp-grid-beat-label">Beat / &amp;</span>{Array.from({length:steps},(_,i)=><span key={i} className="cp-grid-subdivision" data-bar={i%(c.meter*2)===0}>{i%2===0?(i/2)%c.meter+1:'&'}</span>)}
-      {Array.from({length:12},(_,i)=>(octave+1)*12+11-i).filter(pitch=>!fold||scaleNotes.includes((pitch-c.root%12+12)%12)||layer.notes.some(n=>n.pitch===pitch)).map(pitch=><React.Fragment key={pitch}><span className="cp-grid-pitch" data-black={[1,3,6,8,10].includes(pitch%12)} data-outscale={!scaleNotes.includes((pitch-c.root%12+12)%12)}>{composePitchName(pitch)}</span>{Array.from({length:steps},(_,step)=>{const beat=step/2,hits=notesInCell(layer.notes,beat,pitch,noteId),hit=hits[0],coverage=hit?cellCoverage(hit,beat):null,ghost=preview?.pitch===pitch?cellCoverage(preview,beat):null,selected=!!hit&&hit.id===noteId;return <button key={step} type="button" aria-label={`${hit?'Select':'Add'} ${composePitchName(pitch)} at bar ${Math.floor(beat/c.meter)+1} beat ${beat%c.meter+1}${hit?`, ${coverage?.onset?'onset':'sustain'}, ${beatsLabel(hit.duration)}${hits.length>1?`, ${hits.length} overlapping notes`:''}`:''}`} aria-pressed={selected} disabled={pitch<28||pitch>84} data-black={[1,3,6,8,10].includes(pitch%12)} data-outscale={!scaleNotes.includes((pitch-c.root%12+12)%12)} data-grid-beat={beat} data-grid-pitch={pitch} data-note-id={hit?.id} data-on={!!hit} data-selected={selected} data-bar={step%(c.meter*2)===0}
+      {Array.from({length:12},(_,i)=>(octave+1)*12+11-i).filter(pitch=>!fold||scaleNotes.includes((pitch-c.root%12+12)%12)||noteIndex.pitches.has(pitch)).map(pitch=><React.Fragment key={pitch}><span className="cp-grid-pitch" data-black={[1,3,6,8,10].includes(pitch%12)} data-outscale={!scaleNotes.includes((pitch-c.root%12+12)%12)}>{composePitchName(pitch)}</span>{Array.from({length:steps},(_,step)=>{const beat=step/2,hits=noteIndex.cells.get(pitch)?.get(step)??[],hit=hits[0],coverage=hit?cellCoverage(hit,beat):null,ghost=preview?.pitch===pitch?cellCoverage(preview,beat):null,selected=!!hit&&hit.id===noteId;return <button key={step} type="button" aria-label={`${hit?'Select':'Add'} ${composePitchName(pitch)} at bar ${Math.floor(beat/c.meter)+1} beat ${beat%c.meter+1}${hit?`, ${coverage?.onset?'onset':'sustain'}, ${beatsLabel(hit.duration)}${hits.length>1?`, ${hits.length} overlapping notes`:''}`:''}`} aria-pressed={selected} disabled={pitch<28||pitch>84} data-black={[1,3,6,8,10].includes(pitch%12)} data-outscale={!scaleNotes.includes((pitch-c.root%12+12)%12)} data-grid-beat={beat} data-grid-pitch={pitch} data-note-id={hit?.id} data-on={!!hit} data-selected={selected} data-bar={step%(c.meter*2)===0}
        onClick={e=>{if(suppressClick.current&&e?.detail!==0){const skip=suppressClick.current;suppressClick.current=null;if(skip.beat===beat&&skip.pitch===pitch)return;}activateCell(beat,pitch,!!e?.shiftKey);}}
        onContextMenu={e=>{if(notesInCell(layer.notes,beat,pitch,noteId).length){e.preventDefault();activateCell(beat,pitch,true);}}}
        onPointerDown={e=>pointerDown(e,beat,pitch)} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={cancelDrag} onLostPointerCapture={cancelDrag}>
        {coverage&&<span className="cp-grid-body" data-note-onset={coverage.onset} style={{left:`${coverage.left*100}%`,width:`${coverage.width*100}%`}} aria-hidden="true">{coverage.onset?(selected?'◆':'●'):'━'}</span>}{ghost&&<span className="cp-grid-preview" data-note-preview="" style={{left:`${ghost.left*100}%`,width:`${ghost.width*100}%`}} aria-hidden="true"/>}{hits.length>1&&<small className="cp-overlap-count" aria-hidden="true">{hits.length}</small>}
       </button>;})}</React.Fragment>)}
-     <i className="cp-grid-playhead" aria-hidden="true" style={{left:`calc(52px + (100% - 52px) * ${snapshot.positionBeat/loopBeats})`}}/>
+     <ComposePlayhead audio={audio} total={loopBeats} grid/>
      </div>
     </div>
 
-     <div className="cp-velocity-scroll"><div className="cp-velocity-lane" aria-label="Note velocity lane" style={{minWidth:52+steps*32}}><span>VEL</span><div>{layer.notes.filter(n=>n.beat<loopBeats).map((n,index,all)=>{const group=all.filter(other=>other.beat===n.beat),offset=group.findIndex(other=>other.id===n.id);return <input key={n.id} type="range" aria-label={`Velocity ${composePitchName(n.pitch)} at beat ${Number(n.beat.toFixed(2))}`} title={`${composePitchName(n.pitch)} · ${Math.round(n.velocity*100)}% · drag stalk to set velocity`} min={.1} max={1} step={.05} value={n.velocity} style={{left:`calc(${n.beat/loopBeats*100}% + ${offset*8}px)`, '--velocity':`${n.velocity*100}%`} as React.CSSProperties} onPointerDown={()=>{store.beginGesture();setNoteId(n.id);}} onPointerUp={()=>store.endGesture()} onPointerCancel={()=>store.endGesture()} onBlur={()=>store.endGesture()} onChange={e=>editLayer(l=>({...l,notes:l.notes.map(row=>row.id===n.id?{...row,velocity:Number(e.target.value)}:row)}))}/>;})}</div></div></div>
+     <div className="cp-velocity-scroll"><div className="cp-velocity-lane" aria-label="Note velocity lane" style={{minWidth:52+steps*32}}><span>VEL</span><div>{noteIndex.velocity.map(({note:n,offset})=>{return <input key={n.id} type="range" aria-label={`Velocity ${composePitchName(n.pitch)} at beat ${Number(n.beat.toFixed(2))}`} title={`${composePitchName(n.pitch)} · ${Math.round(n.velocity*100)}% · drag stalk to set velocity`} min={.1} max={1} step={.05} value={n.velocity} style={{left:`calc(${n.beat/loopBeats*100}% + ${offset*8}px)`, '--velocity':`${n.velocity*100}%`} as React.CSSProperties} onPointerDown={()=>{store.beginGesture();setNoteId(n.id);}} onPointerUp={()=>store.endGesture()} onPointerCancel={()=>store.endGesture()} onBlur={()=>store.endGesture()} onChange={e=>editLayer(l=>({...l,notes:l.notes.map(row=>row.id===n.id?{...row,velocity:Number(e.target.value)}:row)}))}/>;})}</div></div></div>
      {overlaps.length>1&&<div className="cp-actions"><span>{overlaps.findIndex(n=>n.id===noteId)+1}/{overlaps.length} overlapping</span><button onClick={()=>cycleOverlap(-1)}>Previous</button><button onClick={()=>cycleOverlap(1)}>Next</button></div>}
      </div>
    <aside className="cp-note-editor" aria-label="Selected note"><h3>{note?`${composePitchName(note.pitch)} · selected note`:'Select a note in the grid or arrangement'}</h3>{note?<>
@@ -208,7 +212,7 @@ export function ComposeWorkspace({store,eventStore,writeClipboard,taskNavigation
     </section>
     {drawer&&<div className="cp-editor-anchor"><ParameterScope key={`${scopeKey}:${c.id}:${layer.id}`} identity={`${scopeKey}:${c.id}:${layer.id}`}><ComposeSoundEditor key={layer.id} layer={layer} edit={edit} begin={()=>store.beginGesture()} end={()=>store.endGesture()} onUndo={undo} onClose={closeEditor}/></ParameterScope></div>}
    </div>
-   <footer className="cp-statusbar"><span role="status">{notice||statusHint}</span><span title={`Playback revision ${snapshot.appliedRevision} → ${snapshot.requestedRevision}`}>{snapshot.playing?'PLAYING':snapshot.pending?'PREPARING':readiness.split(' · ')[0]} · {snapshot.positionBeat.toFixed(1)} beats{snapshot.updating?(snapshot.applyAtBeat===null?' · Preparing update':' · Updating next bar'):''}</span></footer>
+   <footer className="cp-statusbar"><span role="status">{notice||statusHint}</span><span title={`Playback revision ${snapshot.appliedRevision} → ${snapshot.requestedRevision}`}>{snapshot.playing?'PLAYING':snapshot.pending?'PREPARING':readiness.split(' · ')[0]} · <ComposePosition audio={audio}/>{snapshot.updating?(snapshot.applyAtBeat===null?' · Preparing update':' · Updating next bar'):''}</span></footer>
   </div>
  </div></ParameterScope>;
 }
