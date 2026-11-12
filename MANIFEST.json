@@ -540,8 +540,8 @@
     },
     {
       "path": "scripts/python.mjs",
-      "bytes": 608,
-      "sha256": "a564ab21ccace9ac94aa679c5ba7cf0d9d73524c4316cfea6b74c82c639d1d57"
+      "bytes": 767,
+      "sha256": "ce8d2fa6a9aa4eff3b313f5424952c2a5545635a240dc19b20ad17036c01db88"
     },
     {
       "path": "scripts/studio-export-proof.mjs",
