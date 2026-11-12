@@ -13,6 +13,7 @@ import os
 import platform
 import re
 import sys
+import subprocess
 import uuid
 from urllib.parse import urlparse
 
@@ -80,11 +81,37 @@ def snapshot_theme(page, sources):
             menu.locator(':scope > summary').click()
 
 
-def canonical_source(source):
-    """Ignore only static import URLs rewritten by Hermes's runtime loader."""
-    source = source.replace('\r\n', '\n')
-    return re.sub(r'(?m)^(import[^\n]+ from )([\'"])[^\'"\n]+\2(;?)$',
-                  r'\1"HOST_IMPORT"\3', source)
+# Exact shim shape from Hermes's sdk/runtime.ts. The namespaces are read from
+# the real host, not supplied by the candidate. Unknown or modified shims fail.
+EXPECTED_SHIMS = """() => Object.fromEntries(Object.entries({
+ '@hermes/plugin-sdk':'__HERMES_PLUGIN_SDK__',
+ 'react':'__HERMES_REACT__',
+ 'react/jsx-runtime':'__HERMES_REACT_JSX__',
+ 'react/jsx-dev-runtime':'__HERMES_REACT_JSX_DEV__'
+}).map(([name,key])=>{
+ const namespace=globalThis[key];if(!namespace)throw Error('Missing native host namespace');
+ const names=Object.keys(namespace).filter(name=>name!=='default'&&/^[A-Za-z_$][\\w$]*$/.test(name));
+ return [name,`const m = globalThis.${key};\\nexport default m.default ?? m;\\n`+(names.length?`export const { ${names.join(', ')} } = m;\\n`:'')];
+}))"""
+
+
+def verified_shims(scripts, expected):
+    result = {}
+    for script in scripts:
+        if not script['url'].startswith('blob:'):
+            continue
+        for identity, source in expected.items():
+            if script['source'].replace('\r\n', '\n') == source.replace('\r\n', '\n'):
+                result[script['url']] = identity
+    return result
+
+
+def verify_sources(expected, modules, shims):
+    result = subprocess.run(
+        ['node', str(ROOT / 'scripts/native-source-verification.mjs')],
+        input=json.dumps({'expected': expected, 'modules': modules, 'shims': shims}),
+        capture_output=True, text=True, encoding='utf-8', check=True, timeout=30, cwd=ROOT)
+    return json.loads(result.stdout)
 
 
 def local_endpoint(value):
@@ -163,14 +190,17 @@ def main():
                 scripts = []
                 session.on('Debugger.scriptParsed', lambda event: scripts.append(event))
                 session.send('Debugger.enable')
-                sources = {}
+                expected_shims = page.evaluate(EXPECTED_SHIMS)
+                captured = []
                 for script in scripts:
-                    if not script.get('url', '').startswith('blob:') or script.get('length', 0) < len(source) // 2:
+                    if not script.get('url', '').startswith('blob:'):
                         continue
                     loaded = session.send('Debugger.getScriptSource', {'scriptId': script['scriptId']})['scriptSource']
-                    if re.search(r'''\bid:\s*["']hermes-sonic-ui["']''', loaded):
-                        sources[script['url']] = canonical_source(loaded) == canonical_source(source)
+                    captured.append({'url': script['url'], 'source': loaded})
                 session.detach()
+                shims = verified_shims(captured, expected_shims)
+                modules = [item for item in captured if len(item['source']) >= len(source) // 2]
+                sources = verify_sources(source, modules, shims)
                 check('Candidate bundle is available for active-handler verification', any(sources.values()))
                 page.evaluate("window.__HERMES_PLUGIN_SDK__.host.navigate('/sonic-ui')")
                 page.get_by_role('button', name='Compose', exact=True).click()

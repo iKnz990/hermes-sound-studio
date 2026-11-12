@@ -147,7 +147,7 @@ try:
    pill(page,'Loop length',32)
    for width,height in [(1440,900),(600,650)]:
     page.set_viewport_size({'width':width,'height':height})
-    check(f'32-bar workspace contains horizontal overflow at {width}px',page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'))
+    check(f'32-bar workspace does not overflow the page horizontally at {width}px',page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'))
    page.add_script_tag(url=f'http://127.0.0.1:{server.server_port}/evidence/workspace-upgrade/oracle.js')
    long_audio=page.evaluate('''async()=>{
     const c=studioOracle.createComposition();c.bars=32;c.tempo=200;c.layers=c.layers.slice(0,1);

@@ -44,13 +44,16 @@ class NativeVerificationGuards(unittest.TestCase):
             with self.assertRaises(ValueError, msg=url):
                 native.local_endpoint(url)
 
-    def test_host_import_rewrite_matches_but_code_changes_do_not(self):
-        original = 'import {host} from "@hermes/plugin-sdk";\nconst limit=32;\n'
-        loaded = 'import {host} from "blob:http://localhost/native-sdk";\r\nconst limit=32;\r\n'
-        self.assertEqual(native.canonical_source(original), native.canonical_source(loaded))
-        self.assertNotEqual(native.canonical_source(original), native.canonical_source(loaded.replace('32', '4')))
+    def test_verified_shims_require_exact_known_host_source(self):
+        expected={'react':'const m = globalThis.__HERMES_REACT__;\nexport default m.default ?? m;\n'}
+        scripts=[{'url':'blob:known','source':expected['react']},
+                 {'url':'blob:modified','source':expected['react']+'sideEffect();'},
+                 {'url':'https://example.invalid/known','source':expected['react']}]
+        self.assertEqual(native.verified_shims(scripts,expected),{'blob:known':'react'})
 
-    def test_embedded_import_like_text_remains_part_of_identity(self):
-        source = 'const text = `import {host} from "@hermes/plugin-sdk";`;\n'
-        self.assertEqual(native.canonical_source(source), source)
-        self.assertNotEqual(native.canonical_source(source), native.canonical_source(source.replace('@hermes/plugin-sdk', 'fixture')))
+    def test_node_bridge_preserves_dependency_identity(self):
+        expected='import React from "react";\nconst limit=32;'
+        modules=[{'url':'good','source':'import React from "blob:react";\nconst limit=32;'},
+                 {'url':'swapped','source':'import React from "blob:jsx";\nconst limit=32;'},
+                 {'url':'unknown','source':'import React from "blob:unknown";\nconst limit=32;'}]
+        self.assertEqual(native.verify_sources(expected,modules,{'blob:react':'react','blob:jsx':'react/jsx-runtime'}),{'good':True,'swapped':False,'unknown':False})

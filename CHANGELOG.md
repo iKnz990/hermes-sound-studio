@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Preserve SDK/React/JSX import identities with syntax-aware verification and exact host-shim checks; reject dependency swaps and unverified blobs.
+- Keep offline audio graphs alive through effect-tail rendering and release nodes after success or failure; add forced-GC PCM coverage without changing tolerances.
+- Clarify the 32-bar browser receipt's no-page-overflow assertion.
+
 - Index Compose grid and velocity data and isolate clock-only rendering, with dense 2,048-note playback/editing coverage.
 - Bind native verification to executing export/draft handlers and compare live six-assignment exports, including unsaved state.
 

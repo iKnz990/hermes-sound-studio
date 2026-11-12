@@ -59,6 +59,18 @@ try:
             check('A stale matching module cannot validate a different executing export handler', rejected)
             # This is a guard test only: reject BEFORE forwarding any model call.
             page.evaluate('window.__HERMES_PLUGIN_SDK__={host:window.proofHost}')
+            page.evaluate("window.__HERMES_REACT__={useRef:()=>null};window.__HERMES_REACT_JSX__={jsx:()=>null};window.__HERMES_REACT_JSX_DEV__={jsxDEV:()=>null}")
+            expected_shims = page.evaluate(native.EXPECTED_SHIMS)
+            linked = page.evaluate("""async expected=>{
+             const scripts=[],urls={};for(const [name,source] of Object.entries(expected)){const url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));scripts.push({url,source});urls[name]=url;}
+             const candidate='import React from "react";\\nimport {host} from "@hermes/plugin-sdk";\\nexport const ready=!!host;';
+             const good=candidate.replace('"react"',JSON.stringify(urls.react)).replace('"@hermes/plugin-sdk"',JSON.stringify(urls['@hermes/plugin-sdk']));
+             const swapped=good.replace(JSON.stringify(urls.react),JSON.stringify(urls['react/jsx-runtime']));
+             for(const source of [good,swapped]){const url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));await import(url);URL.revokeObjectURL(url);}
+             const result={candidate,scripts,modules:[{url:'good',source:good},{url:'swapped',source:swapped}]};Object.values(urls).forEach(url=>URL.revokeObjectURL(url));return result;
+            }""", expected_shims)
+            admitted_shims = native.verified_shims(linked['scripts'], expected_shims)
+            check('Parsed module verification accepts actual host-shaped shims and rejects a loadable dependency swap', native.verify_sources(linked['candidate'], linked['modules'], admitted_shims) == {'good': True, 'swapped': False})
             page.evaluate(native.OBSERVE, {'marker': 'guard-test', 'sourceUrl': 'blob:stale-candidate'})
             result = page.evaluate("""async()=>{const before=proofBackgroundCalls.length;try{await proofHost.requestProfile({},'session.create',{title:'guard-test'});return false;}catch{return proofBackgroundCalls.length===before;}}""")
             page.evaluate('window.__studioNativeProbe.restore()')

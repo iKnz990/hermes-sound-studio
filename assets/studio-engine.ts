@@ -178,9 +178,9 @@ export function describeSoundRouting(patch:SoundPatch):SoundRouting {
   node('lfo2',`LFO 2 (${p.lfo2.enabled&&p.lfo2.depth?'active':'inactive'})`,'modulator');
   node('env1','Env 1 (ADSR) matrix source','modulator');node('velocity','Velocity (intensity) matrix source','modulator');
   node('osc1-level','Osc 1 level','parameter');node('osc2-pitch','Osc 2 pitch','parameter');node('filter-cutoff','Filter cutoff','parameter');node('filter-resonance','Filter resonance','parameter');node('pan-control','Stereo pan','parameter');
-  if(p.lfo1.enabled&&p.lfo1.depth)mod('lfo1','filter-cutoff','direct ×160 cents');
+  if(p.lfo1.enabled&&p.lfo1.depth)mod('lfo1','filter-cutoff','direct Ã—160 cents');
   const pitchAvailable=p.osc2.enabled&&p.osc2.vol>0,panAvailable=p.playback.stereo==='Stereo';
-  if(p.lfo2.enabled&&p.lfo2.depth&&pitchAvailable)mod('lfo2','osc2-pitch','direct ×40 cents');
+  if(p.lfo2.enabled&&p.lfo2.depth&&pitchAvailable)mod('lfo2','osc2-pitch','direct Ã—40 cents');
   const sourceIds={'LFO 1':'lfo1','LFO 2':'lfo2','Env 1 (ADSR)':'env1','Velocity':'velocity'} as const;
   const destIds={'Filter Cutoff':'filter-cutoff','Osc 1 Level':'osc1-level','Pan':'pan-control','Filter Resonance':'filter-resonance','Osc 2 Pitch':'osc2-pitch'} as const;
   const scales={'Filter Cutoff':720,'Osc 1 Level':0.35,'Pan':0.32,'Filter Resonance':1.8,'Osc 2 Pitch':200} as const;
@@ -205,12 +205,12 @@ function envelope(param:AudioParam,t:number,p:SoundPatch):void {
   param.setValueAtTime(p.adsr.s,t+a+d+Math.max(0,hold));
   if(r) param.linearRampToValueAtTime(0,t+p.duration);else param.setValueAtTime(0,t+p.duration);
 }
-function modulation(ctx:OfflineAudioContext,p:SoundPatch,t:number,end:number,target:AudioParam,source:AudioNode,amount:number):void {
-  const scaling=ctx.createGain();scaling.gain.value=amount;source.connect(scaling);scaling.connect(target);
+function modulation(ctx:OfflineAudioContext,p:SoundPatch,t:number,end:number,target:AudioParam,source:AudioNode,amount:number,owned:AudioNode[]):void {
+  const scaling=ctx.createGain();owned.push(scaling);scaling.gain.value=amount;source.connect(scaling);scaling.connect(target);
 }
-function makeLfo(ctx:OfflineAudioContext,cfg:Lfo,t:number,end:number):AudioNode|null {
+function makeLfo(ctx:OfflineAudioContext,cfg:Lfo,t:number,end:number,owned:AudioNode[]):AudioNode|null {
   if(!cfg.enabled||!cfg.depth)return null;
-  const o=ctx.createOscillator(),g=ctx.createGain();o.type=cfg.type;o.frequency.value=cfg.rate;g.gain.value=cfg.depth;o.connect(g);o.start(t);o.stop(end);return g;
+  const o=ctx.createOscillator(),g=ctx.createGain();owned.push(o,g);o.type=cfg.type;o.frequency.value=cfg.rate;g.gain.value=cfg.depth;o.connect(g);o.start(t);o.stop(end);return g;
 }
 function impulse(ctx:OfflineAudioContext,seed:number,stereo:boolean,decay:number):AudioBuffer {
   const len=Math.ceil(decay*ctx.sampleRate),b=ctx.createBuffer(stereo?2:1,len,ctx.sampleRate),rand=random(seed^0x72d953);
@@ -235,107 +235,113 @@ export async function renderSoundPatch(patch:SoundPatch,options:{sampleRate?:num
     :(p.fxOrder?(0.035+(p.fx.chorus?0.07:0)+(p.fx.delay?1.16:0)+(p.fx.reverb?0.68:0)):(p.fx.delay?1.16:p.fx.reverb?0.68:p.fx.chorus?0.07:0.035));
   const seconds=p.duration+(p.chords.length-1)*0.024+tail;
   const ctx=new OfflineAudioContext(2,Math.ceil(seconds*rate),rate);
-  const voice=ctx.createGain();let current:AudioNode=voice;
+  // Source nodes finish before their effect tails. Keep the complete graph
+  // strongly reachable until the offline promise settles; otherwise GC can
+  // reclaim tail-processing nodes during the render (including ConvolverNode).
+  const owned:AudioNode[]=[];
+  const retain=<T extends AudioNode>(node:T):T=>{owned.push(node);return node;};
+  const voice=retain(ctx.createGain());let current:AudioNode=voice;
   let sum:GainNode;
   if(p.fxOrder){
     for(const key of p.fxOrder){
       if(!p.fx[key])continue;
-      if(key==='eq'){const eq=ctx.createBiquadFilter();eq.type='peaking';eq.frequency.value=params.eq.frequency;eq.Q.value=params.eq.q;eq.gain.value=params.eq.gainDb;current.connect(eq);current=eq;}
-      else if(key==='saturation'){const shaper=ctx.createWaveShaper(),curve=new Float32Array(1025);
+      if(key==='eq'){const eq=retain(ctx.createBiquadFilter());eq.type='peaking';eq.frequency.value=params.eq.frequency;eq.Q.value=params.eq.q;eq.gain.value=params.eq.gainDb;current.connect(eq);current=eq;}
+      else if(key==='saturation'){const shaper=retain(ctx.createWaveShaper()),curve=new Float32Array(1025);
         const k=1.5+params.saturation.drive*0.55;for(let i=0;i<curve.length;i++){const x=i/512-1;curve[i]=Math.tanh(k*x)/Math.tanh(k);}
         shaper.curve=curve;current.connect(shaper);current=shaper;
-      }else if(key==='compressor'){const comp=ctx.createDynamicsCompressor();comp.threshold.value=params.compressor.thresholdDb;comp.knee.value=params.compressor.kneeDb;comp.ratio.value=params.compressor.ratio;comp.attack.value=params.compressor.attack;comp.release.value=params.compressor.release;current.connect(comp);current=comp;}
+      }else if(key==='compressor'){const comp=retain(ctx.createDynamicsCompressor());comp.threshold.value=params.compressor.thresholdDb;comp.knee.value=params.compressor.kneeDb;comp.ratio.value=params.compressor.ratio;comp.attack.value=params.compressor.attack;comp.release.value=params.compressor.release;current.connect(comp);current=comp;}
       else{
-        const stage=ctx.createGain();current.connect(stage); // The direct path remains in the serial stage.
-        if(key==='chorus'){const delay=ctx.createDelay(0.06),wet=ctx.createGain(),osc=ctx.createOscillator(),mod=ctx.createGain();
+        const stage=retain(ctx.createGain());current.connect(stage); // The direct path remains in the serial stage.
+        if(key==='chorus'){const delay=retain(ctx.createDelay(0.06)),wet=retain(ctx.createGain()),osc=retain(ctx.createOscillator()),mod=retain(ctx.createGain());
           delay.delayTime.value=0.018;wet.gain.value=params.chorus.mix;osc.frequency.value=params.chorus.rate;mod.gain.value=params.chorus.depth;
           osc.connect(mod);mod.connect(delay.delayTime);osc.start(0);osc.stop(seconds);current.connect(delay);delay.connect(wet);wet.connect(stage);
-        }else if(key==='delay'){const d=ctx.createDelay(p.fxParameters?1:0.2),feedback=ctx.createGain(),wet=ctx.createGain();d.delayTime.value=params.delay.time;feedback.gain.value=params.delay.feedback;wet.gain.value=params.delay.mix;
+        }else if(key==='delay'){const d=retain(ctx.createDelay(p.fxParameters?1:0.2)),feedback=retain(ctx.createGain()),wet=retain(ctx.createGain());d.delayTime.value=params.delay.time;feedback.gain.value=params.delay.feedback;wet.gain.value=params.delay.mix;
           current.connect(d);d.connect(feedback);feedback.connect(d);d.connect(wet);wet.connect(stage);
-        }else{const conv=ctx.createConvolver(),wet=ctx.createGain();conv.normalize=false;conv.buffer=impulse(ctx,p.seed,p.playback.stereo==='Stereo',params.reverb.decay);wet.gain.value=params.reverb.mix;current.connect(conv);conv.connect(wet);wet.connect(stage);}
+        }else{const conv=retain(ctx.createConvolver()),wet=retain(ctx.createGain());conv.normalize=false;conv.buffer=impulse(ctx,p.seed,p.playback.stereo==='Stereo',params.reverb.decay);wet.gain.value=params.reverb.mix;current.connect(conv);conv.connect(wet);wet.connect(stage);}
         current=stage;
       }
     }
-    sum=ctx.createGain();current.connect(sum);
+    sum=retain(ctx.createGain());current.connect(sum);
   }else{
-  if(p.fx.eq){const eq=ctx.createBiquadFilter();eq.type='peaking';eq.frequency.value=params.eq.frequency;eq.Q.value=params.eq.q;eq.gain.value=params.eq.gainDb;current.connect(eq);current=eq;}
-  if(p.fx.saturation){const shaper=ctx.createWaveShaper(),curve=new Float32Array(1025);
+  if(p.fx.eq){const eq=retain(ctx.createBiquadFilter());eq.type='peaking';eq.frequency.value=params.eq.frequency;eq.Q.value=params.eq.q;eq.gain.value=params.eq.gainDb;current.connect(eq);current=eq;}
+  if(p.fx.saturation){const shaper=retain(ctx.createWaveShaper()),curve=new Float32Array(1025);
     const k=1.5+params.saturation.drive*0.55;for(let i=0;i<curve.length;i++){const x=i/512-1;curve[i]=Math.tanh(k*x)/Math.tanh(k);}
     shaper.curve=curve;current.connect(shaper);current=shaper;
   }
-  if(p.fx.compressor){const comp=ctx.createDynamicsCompressor();comp.threshold.value=params.compressor.thresholdDb;comp.knee.value=params.compressor.kneeDb;comp.ratio.value=params.compressor.ratio;comp.attack.value=params.compressor.attack;comp.release.value=params.compressor.release;current.connect(comp);current=comp;}
+  if(p.fx.compressor){const comp=retain(ctx.createDynamicsCompressor());comp.threshold.value=params.compressor.thresholdDb;comp.knee.value=params.compressor.kneeDb;comp.ratio.value=params.compressor.ratio;comp.attack.value=params.compressor.attack;comp.release.value=params.compressor.release;current.connect(comp);current=comp;}
   // Send effects are additive after the insert chain. Every send terminates at the same limiter.
-  sum=ctx.createGain();current.connect(sum);
-  if(p.fx.chorus){const delay=ctx.createDelay(0.06),wet=ctx.createGain(),osc=ctx.createOscillator(),mod=ctx.createGain();
+  sum=retain(ctx.createGain());current.connect(sum);
+  if(p.fx.chorus){const delay=retain(ctx.createDelay(0.06)),wet=retain(ctx.createGain()),osc=retain(ctx.createOscillator()),mod=retain(ctx.createGain());
     delay.delayTime.value=0.018;wet.gain.value=params.chorus.mix;osc.frequency.value=params.chorus.rate;mod.gain.value=params.chorus.depth;
     osc.connect(mod);mod.connect(delay.delayTime);osc.start(0);osc.stop(seconds);current.connect(delay);delay.connect(wet);wet.connect(sum);
   }
-  if(p.fx.delay){const d=ctx.createDelay(p.fxParameters?1:0.2),feedback=ctx.createGain(),wet=ctx.createGain();d.delayTime.value=params.delay.time;feedback.gain.value=params.delay.feedback;wet.gain.value=params.delay.mix;
+  if(p.fx.delay){const d=retain(ctx.createDelay(p.fxParameters?1:0.2)),feedback=retain(ctx.createGain()),wet=retain(ctx.createGain());d.delayTime.value=params.delay.time;feedback.gain.value=params.delay.feedback;wet.gain.value=params.delay.mix;
     current.connect(d);d.connect(feedback);feedback.connect(d);d.connect(wet);wet.connect(sum);
   }
-  if(p.fx.reverb){const conv=ctx.createConvolver(),wet=ctx.createGain();conv.normalize=false;conv.buffer=impulse(ctx,p.seed,p.playback.stereo==='Stereo',params.reverb.decay);wet.gain.value=params.reverb.mix;current.connect(conv);conv.connect(wet);wet.connect(sum);}
+  if(p.fx.reverb){const conv=retain(ctx.createConvolver()),wet=retain(ctx.createGain());conv.normalize=false;conv.buffer=impulse(ctx,p.seed,p.playback.stereo==='Stereo',params.reverb.decay);wet.gain.value=params.reverb.mix;current.connect(conv);conv.connect(wet);wet.connect(sum);}
   }
   // Always-on output ceiling; conservative gain ensures ordinary patches stay below it.
-  const limiter=ctx.createWaveShaper(),ceiling=new Float32Array(1025);for(let i=0;i<ceiling.length;i++)ceiling[i]=Math.tanh((i/512-1)*1.05)/Math.tanh(1.05);
-  limiter.curve=ceiling;const level=ctx.createGain();level.gain.value=masterGain;sum.connect(level);level.connect(limiter);limiter.connect(ctx.destination);
+  const limiter=retain(ctx.createWaveShaper()),ceiling=new Float32Array(1025);for(let i=0;i<ceiling.length;i++)ceiling[i]=Math.tanh((i/512-1)*1.05)/Math.tanh(1.05);
+  limiter.curve=ceiling;const level=retain(ctx.createGain());level.gain.value=masterGain;sum.connect(level);level.connect(limiter);limiter.connect(ctx.destination);
   const rand=random(p.seed);
   p.chords.forEach((semi,idx)=>{
     const t=idx*0.024,end=t+p.duration,note=p.baseFreq*2**(semi/12);
-    const filter=ctx.createBiquadFilter();filter.type=p.filter.type;filter.frequency.value=p.filter.cutoff;filter.Q.value=p.filter.res;
-    const drive=ctx.createWaveShaper(),driveCurve=new Float32Array(513);const driveAmount=1+p.filter.drive*0.075;
+    const filter=retain(ctx.createBiquadFilter());filter.type=p.filter.type;filter.frequency.value=p.filter.cutoff;filter.Q.value=p.filter.res;
+    const drive=retain(ctx.createWaveShaper()),driveCurve=new Float32Array(513);const driveAmount=1+p.filter.drive*0.075;
     for(let i=0;i<driveCurve.length;i++)driveCurve[i]=Math.tanh((i/256-1)*driveAmount)/driveAmount;
     drive.curve=driveCurve;drive.connect(filter);
-    const env=ctx.createGain();env.gain.value=0;const peak=ctx.createGain();peak.gain.value=(0.11*p.intensity/100*10**(p.playback.gainDb/20))/Math.sqrt(p.chords.length);
+    const env=retain(ctx.createGain());env.gain.value=0;const peak=retain(ctx.createGain());peak.gain.value=(0.11*p.intensity/100*10**(p.playback.gainDb/20))/Math.sqrt(p.chords.length);
     envelope(env.gain,t,p);
     let panParam:AudioParam|undefined;
     if(p.playback.stereo==='Stereo'){
-      const pan=ctx.createStereoPanner();pan.pan.value=Math.max(-0.65,Math.min(0.65,(idx-(p.chords.length-1)/2)*0.24));filter.connect(pan);pan.connect(env);
+      const pan=retain(ctx.createStereoPanner());pan.pan.value=Math.max(-0.65,Math.min(0.65,(idx-(p.chords.length-1)/2)*0.24));filter.connect(pan);pan.connect(env);
       panParam=pan.pan;
     }else filter.connect(env);
     env.connect(peak);peak.connect(voice);
-    const osc1Gain=ctx.createGain(),osc2Gain=ctx.createGain();osc1Gain.gain.value=p.osc1.vol;osc2Gain.gain.value=p.osc2.vol;
+    const osc1Gain=retain(ctx.createGain()),osc2Gain=retain(ctx.createGain());osc1Gain.gain.value=p.osc1.vol;osc2Gain.gain.value=p.osc2.vol;
     let pitchParam:AudioParam|undefined;const pitchParams:AudioParam[]=[];
     for(const [i,cfg] of ([p.osc1,p.osc2,p.osc3] as const).entries())if(cfg.enabled&&cfg.vol){
-      const osc=ctx.createOscillator();osc.type=cfg.type;osc.frequency.value=note*2**(cfg.tune/12);
-      const gain=i===0?osc1Gain:i===1?osc2Gain:ctx.createGain();if(i===2)gain.gain.value=cfg.vol;
+      const osc=retain(ctx.createOscillator());osc.type=cfg.type;osc.frequency.value=note*2**(cfg.tune/12);
+      const gain=i===0?osc1Gain:i===1?osc2Gain:retain(ctx.createGain());if(i===2)gain.gain.value=cfg.vol;
       osc.detune.value=cfg.detune??0;
       const spread=cfg.spread??0;
       // Legacy zero-width patches retain their exact synthesis graph and PCM.
       let destination:AudioNode=gain;
-      if(spread){const norm=ctx.createGain();norm.gain.value=.5;norm.connect(gain);destination=norm;const twin=ctx.createOscillator();twin.type=cfg.type;twin.frequency.value=osc.frequency.value;twin.detune.value=(cfg.detune??0)+spread;osc.detune.value-=spread;twin.connect(norm);twin.start(t);twin.stop(end);if(i===1)pitchParams.push(twin.detune);}
+      if(spread){const norm=retain(ctx.createGain());norm.gain.value=.5;norm.connect(gain);destination=norm;const twin=retain(ctx.createOscillator());twin.type=cfg.type;twin.frequency.value=osc.frequency.value;twin.detune.value=(cfg.detune??0)+spread;osc.detune.value-=spread;twin.connect(norm);twin.start(t);twin.stop(end);if(i===1)pitchParams.push(twin.detune);}
       osc.connect(destination);
-      if(p.playback.stereo==='Stereo'&&(cfg.pan??0)!==0){const pan=ctx.createStereoPanner();pan.pan.value=cfg.pan!;gain.connect(pan);pan.connect(drive);}else gain.connect(drive);
+      if(p.playback.stereo==='Stereo'&&(cfg.pan??0)!==0){const pan=retain(ctx.createStereoPanner());pan.pan.value=cfg.pan!;gain.connect(pan);pan.connect(drive);}else gain.connect(drive);
       osc.start(t);osc.stop(end);
       if(i===1){pitchParam=osc.detune;pitchParams.push(osc.detune);}
     }
     if(p.noise){const buffer=ctx.createBuffer(1,Math.max(1,Math.ceil(Math.min(0.08,p.duration)*rate)),rate),data=buffer.getChannelData(0);
       for(let i=0;i<data.length;i++)data[i]=rand()*2-1;
-      const src=ctx.createBufferSource(),gain=ctx.createGain();src.buffer=buffer;gain.gain.value=p.noise*0.35;src.connect(gain);gain.connect(drive);src.start(t);
+      const src=retain(ctx.createBufferSource()),gain=retain(ctx.createGain());src.buffer=buffer;gain.gain.value=p.noise*0.35;src.connect(gain);gain.connect(drive);src.start(t);
     }
     function wireMatrix():void {
       const routes=p.modMatrix.filter(row=>row.amount!==0 && (row.dest!=='Pan'||panParam) && (row.dest!=='Osc 2 Pitch'||pitchParam));
       if(!routes.length)return;
       let l1:AudioNode|null=null,l2:AudioNode|null=null,e1:ConstantSourceNode|null=null,v:ConstantSourceNode|null=null;
       for(const row of routes){let source:AudioNode|null=null;
-        if(row.source==='LFO 1')source=l1??(l1=makeLfo(ctx,p.lfo1,t,end));
-        if(row.source==='LFO 2')source=l2??(l2=makeLfo(ctx,p.lfo2,t,end));
-        if(row.source==='Env 1 (ADSR)'){if(!e1){e1=ctx.createConstantSource();envelope(e1.offset,t,p);e1.start(t);e1.stop(end);}source=e1;}
-        if(row.source==='Velocity'){if(!v){v=ctx.createConstantSource();v.offset.value=p.intensity/100;v.start(t);v.stop(end);}source=v;}
+        if(row.source==='LFO 1')source=l1??(l1=makeLfo(ctx,p.lfo1,t,end,owned));
+        if(row.source==='LFO 2')source=l2??(l2=makeLfo(ctx,p.lfo2,t,end,owned));
+        if(row.source==='Env 1 (ADSR)'){if(!e1){e1=retain(ctx.createConstantSource());envelope(e1.offset,t,p);e1.start(t);e1.stop(end);}source=e1;}
+        if(row.source==='Velocity'){if(!v){v=retain(ctx.createConstantSource());v.offset.value=p.intensity/100;v.start(t);v.stop(end);}source=v;}
         if(!source)continue;
         const target=row.dest==='Filter Cutoff'?filter.detune:row.dest==='Filter Resonance'?filter.Q:row.dest==='Osc 1 Level'?osc1Gain.gain:row.dest==='Pan'?panParam:pitchParam;
         if(!target)continue;
         const amount=row.amount*(row.dest==='Filter Cutoff'?720:row.dest==='Filter Resonance'?1.8:row.dest==='Osc 2 Pitch'?200:row.dest==='Pan'?0.32:0.35);
-        if(row.dest==='Osc 2 Pitch'){for(const param of pitchParams)modulation(ctx,p,t,end,param,source,amount);}else modulation(ctx,p,t,end,target,source,amount);
+        if(row.dest==='Osc 2 Pitch'){for(const param of pitchParams)modulation(ctx,p,t,end,param,source,amount,owned);}else modulation(ctx,p,t,end,target,source,amount,owned);
       }
     }
     // Direct modulation keeps both LFO controls audible even with an empty matrix.
-    const baseLfo1=makeLfo(ctx,p.lfo1,t,end);
-    if(baseLfo1)modulation(ctx,p,t,end,filter.detune,baseLfo1,160);
-    const baseLfo2=makeLfo(ctx,p.lfo2,t,end);
-    if(baseLfo2)for(const param of pitchParams)modulation(ctx,p,t,end,param,baseLfo2,40);
+    const baseLfo1=makeLfo(ctx,p.lfo1,t,end,owned);
+    if(baseLfo1)modulation(ctx,p,t,end,filter.detune,baseLfo1,160,owned);
+    const baseLfo2=makeLfo(ctx,p.lfo2,t,end,owned);
+    if(baseLfo2)for(const param of pitchParams)modulation(ctx,p,t,end,param,baseLfo2,40,owned);
     wireMatrix();
   });
-  return ctx.startRendering();
+  try{return await ctx.startRendering();}
+  finally{for(const node of owned)try{node.disconnect();}catch{/* Preserve the render outcome if a context is already torn down. */}}
 }
 
 /** Analysis is derived only from the supplied PCM; 32 time windows and a direct 256-point DFT. */

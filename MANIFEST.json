@@ -15,8 +15,8 @@
     },
     {
       "path": ".github/workflows/native.yml",
-      "bytes": 911,
-      "sha256": "f66b2b7fb6d0647405ca8bacf5e17e5aa612ee25deecc2511c4aa15c59b4198a"
+      "bytes": 1069,
+      "sha256": "29e5bf6e15e8c6544d14671a1b22ff32734cca346177efdffbb01c7233724123"
     },
     {
       "path": ".gitignore",
@@ -25,8 +25,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 2723,
-      "sha256": "e0a6c5276ea19ecedcfbf49f3076890c34872a42cd54a12721f457dab4b91be7"
+      "bytes": 3107,
+      "sha256": "0d22e339911beca9797b852666a11693d47becbd420b28b5ffe272448d2e7317"
     },
     {
       "path": "INSTALL.md",
@@ -70,8 +70,8 @@
     },
     {
       "path": "assets/studio-engine.ts",
-      "bytes": 44309,
-      "sha256": "a6323048a4b6982e026ee92fa46152f5350b0a9c5399094ad0aa3f2e6bfc21aa"
+      "bytes": 45291,
+      "sha256": "f61c38044d187136ef00f39b6933b25752da516b2fe42fd58a80fe9f396803e0"
     },
     {
       "path": "assets/studio-palettes.json",
@@ -390,8 +390,8 @@
     },
     {
       "path": "desktop/plugin.js",
-      "bytes": 682580,
-      "sha256": "426aef07a003876ee87a8499d8ba8013ac7686066cee9ee9045db4930d0617c6"
+      "bytes": 684275,
+      "sha256": "f90f8cf022b55aa3e6c1f7c24fbc4090e0a526630728b374a40213f2007eba00"
     },
     {
       "path": "dist/injector.cjs",
@@ -435,8 +435,8 @@
     },
     {
       "path": "docs/verification.md",
-      "bytes": 9079,
-      "sha256": "549c693eb17defb3035322429532992dba192fcc30d015c6ed41d1f783c146fe"
+      "bytes": 11170,
+      "sha256": "f08ad27f3317dc4e3218481a7199b922d08c5e7a94d009acb6fd0896816ce0fb"
     },
     {
       "path": "examples/glass-chords.sound.json",
@@ -515,8 +515,8 @@
     },
     {
       "path": "scripts/desktop-target-browser-proof.py",
-      "bytes": 10296,
-      "sha256": "08d689ddfbac2da16277152655ac8d4895ba468669511f45e084110c256415d0"
+      "bytes": 11637,
+      "sha256": "f9465b355bdca7b7a27f62a1550732f4c5bfc223acb9ddd3ddabbc8db3090a67"
     },
     {
       "path": "scripts/draft-session-browser-proof.py",
@@ -530,13 +530,18 @@
     },
     {
       "path": "scripts/native-desktop-proof.py",
-      "bytes": 12966,
-      "sha256": "854a17dbcdb05118c4ea8386afa88bca12353b3af2de31dc287361f1d06ef9da"
+      "bytes": 14342,
+      "sha256": "a6e76aa4110da962a2dccebd3b0046f1c1f0f01ecc4fa369012ec5b4d8152375"
+    },
+    {
+      "path": "scripts/native-source-verification.mjs",
+      "bytes": 2302,
+      "sha256": "4c1a21f9a7aba29e14abf5981739a85fa0ca841641e72e3025cebba057bcd8f1"
     },
     {
       "path": "scripts/native-verifier-browser-proof.py",
-      "bytes": 5011,
-      "sha256": "f647e462eaf6bbebf83c6c4019609b9a9f16138eb88177294e4de100467a819b"
+      "bytes": 6615,
+      "sha256": "8630cda9d4fbed103fea32d9709dba03fdbdc3fada8c1c541bfc3b4ca7a5f349"
     },
     {
       "path": "scripts/package.mjs",
@@ -570,8 +575,8 @@
     },
     {
       "path": "scripts/test-files.json",
-      "bytes": 1292,
-      "sha256": "051541850c5497b83bc7e989e808d6c7d709ef1cf81a80e6cf88195183a5468d"
+      "bytes": 1388,
+      "sha256": "0db7cddad670448d1f2d868175f507c0bea8f09afeefbcb67e597d864b84d83e"
     },
     {
       "path": "scripts/test.mjs",
@@ -585,8 +590,8 @@
     },
     {
       "path": "scripts/workspace-upgrade-proof.py",
-      "bytes": 18727,
-      "sha256": "a050007a0d4e4a8a81b67fe2e0809934e1e918b95ec2b386223cc80f9b8dcb92"
+      "bytes": 18738,
+      "sha256": "0dc1e66b30d2cbd5a525f6b800e177203ec631bc9ffe764eeb44f334664f9ee8"
     },
     {
       "path": "skills/sonic-ui/SKILL.md",
@@ -659,6 +664,11 @@
       "sha256": "a42cf2d597551d75a04019008e046a3094ef887d8100d857d20206151240ff2f"
     },
     {
+      "path": "tests/native-source-verification.test.mjs",
+      "bytes": 3561,
+      "sha256": "15a6935d8f6845291bfc605888fbf121e0032348c1994fe12320b291a8a4aafe"
+    },
+    {
       "path": "tests/patch-parity.test.mjs",
       "bytes": 4993,
       "sha256": "c7053461ed2b6de20a6fc1464da19550f859245f38b1fb0b97bc5953b09965c5"
@@ -714,6 +724,11 @@
       "sha256": "2b643c6a25999677c7e90e6d44a93ed73881b654f4147b8e07504e6ffd982de4"
     },
     {
+      "path": "tests/studio-render-lifetime.test.mjs",
+      "bytes": 3447,
+      "sha256": "3f1b3b4fc0d9de96d41c885b5873ed378a049c81bb0f15efdc0a7760440bece5"
+    },
+    {
       "path": "tests/studio-repository.test.mjs",
       "bytes": 6048,
       "sha256": "df31ec21f3a1a67d4cf5b82b2c0157153e9660dbcd2a10baf115069377664316"
@@ -745,8 +760,8 @@
     },
     {
       "path": "tests/test_native_verification.py",
-      "bytes": 3083,
-      "sha256": "778f3308bc147c2d9bfdfe0b230b0c44157ee86c8cba72102491be01fabd155a"
+      "bytes": 3345,
+      "sha256": "8df1e1b3a5b8d44455a61f1bdc690fa26f745d431293e21faa5474b52006d79b"
     },
     {
       "path": "tests/test_registration.py",

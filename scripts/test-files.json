@@ -22,7 +22,9 @@
     "tests/studio-workspace-upgrade.test.mjs",
     "tests/studio-desktop-target.test.mjs",
     "tests/studio-draft-session.test.mjs",
-    "tests/studio-background-draft.test.mjs"
+    "tests/studio-background-draft.test.mjs",
+    "tests/native-source-verification.test.mjs",
+    "tests/studio-render-lifetime.test.mjs"
   ],
   "python": [
     "test_native_verification.py",
