@@ -1,4 +1,31 @@
 import {MAX_COMPOSE_BEATS,type Composition,type ComposeNote} from './compose-model';
+import type {ComposeAudioSnapshot} from './compose-live-transport';
+
+/** Stable external-store snapshot: clock-only ticks must not redraw the editor. */
+export function composeEditorSnapshot(read:()=>ComposeAudioSnapshot){
+ let previous:Omit<ComposeAudioSnapshot,'positionBeat'>|undefined;
+ return ()=>{
+  const {positionBeat:_position,...next}=read();
+  if(!previous||Object.entries(next).some(([key,value])=>previous![key as keyof typeof next]!==value))previous=Object.freeze(next);
+  return previous;
+ };
+}
+
+/** Index each note only into intersecting half-beat cells (at most nine).
+ * Velocity offsets preserve document order, including same-beat overlaps. */
+export function indexComposeNotes(notes:readonly ComposeNote[],total:number,selected:string|null){
+ const cells=new Map<number,Map<number,ComposeNote[]>>(),pitches=new Set<number>();
+ const velocity:Array<{note:ComposeNote;offset:number}>=[],counts=new Map<number,number>();
+ for(const note of notes){
+  pitches.add(note.pitch);if(note.beat>=total)continue;
+  const offset=counts.get(note.beat)??0;counts.set(note.beat,offset+1);velocity.push({note,offset});
+  let row=cells.get(note.pitch);if(!row){row=new Map();cells.set(note.pitch,row);}
+  const first=Math.max(0,Math.floor(note.beat*2)),last=Math.min(Math.ceil(total*2),Math.ceil((note.beat+note.duration)*2));
+  for(let step=first;step<last;step++){let hits=row.get(step);if(!hits){hits=[];row.set(step,hits);}hits.push(note);}
+ }
+ for(const row of cells.values())for(const hits of row.values())hits.sort((a,b)=>Number(b.id===selected)-Number(a.id===selected)||b.beat-a.beat||(a.id<b.id?-1:a.id>b.id?1:0));
+ return {cells,pitches,velocity};
+}
 
 /** Session/view policy only. Never adds fields to Composition/v1. */
 export function notesAtBeat(notes:readonly ComposeNote[],beat:number,pitch:number,selected:string|null):ComposeNote[]{

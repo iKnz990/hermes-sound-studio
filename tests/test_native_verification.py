@@ -2,6 +2,8 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import json
+import copy
 
 spec = importlib.util.spec_from_file_location(
     'native_proof', Path(__file__).resolve().parents[1] / 'scripts/native-desktop-proof.py')
@@ -10,6 +12,28 @@ spec.loader.exec_module(native)
 
 
 class NativeVerificationGuards(unittest.TestCase):
+    def test_null_and_incomplete_exports_are_not_assignment_proof(self):
+        for value in [None, {}, {'schemaVersion': 'SoundTheme/v1', 'events': {}}]:
+            with self.assertRaises(ValueError):
+                native.active_theme(json.dumps(value))
+
+    def test_live_export_validates_every_patch(self):
+        theme = json.loads((native.ROOT / 'examples/signal-garden.theme.json').read_text(encoding='utf-8'))
+        self.assertEqual(native.active_theme(json.dumps(theme)), theme)
+        for event in native.EVENTS:
+            broken = copy.deepcopy(theme)
+            broken['events'][event]['intensity'] = -1
+            with self.assertRaises((ValueError, TypeError)):
+                native.active_theme(json.dumps(broken))
+
+    def test_live_snapshot_comparison_detects_each_assignment_change(self):
+        theme = json.loads((native.ROOT / 'examples/signal-garden.theme.json').read_text(encoding='utf-8'))
+        before = native.active_theme(json.dumps(theme))
+        for event in native.EVENTS:
+            changed = copy.deepcopy(theme)
+            changed['events'][event]['name'] += ' changed'
+            self.assertNotEqual(before, native.active_theme(json.dumps(changed)))
+
     def test_only_loopback_http_endpoints(self):
         for url in ['http://127.0.0.1:9222', 'http://localhost:9222/', 'http://[::1]:9222']:
             self.assertEqual(native.local_endpoint(url), url)

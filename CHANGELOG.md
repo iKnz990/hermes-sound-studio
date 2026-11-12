@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Index Compose grid and velocity data and isolate clock-only rendering, with dense 2,048-note playback/editing coverage.
+- Bind native verification to executing export/draft handlers and compare live six-assignment exports, including unsaved state.
+
 - Expand Compose to 32 bars and 2,048 notes, preserving notes when the visible arrangement is shortened. Cover late editing, persistence, playback and WAV export.
 - Run portable build/regression/browser CI on Windows, macOS and Linux, with per-platform evidence.
 - Add an opt-in native Hermes Desktop/configured-model gate and manually dispatched three-platform runner workflow. Native receipts require provisioned test hosts; fixtures remain a separate test lane.

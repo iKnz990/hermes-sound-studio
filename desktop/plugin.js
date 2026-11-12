@@ -1,9 +1,9 @@
 // desktop-src/plugin.tsx
-import { useSyncExternalStore as useSyncExternalStore3 } from "react";
+import { useSyncExternalStore as useSyncExternalStore4 } from "react";
 import { host, ROUTES_AREA, SIDEBAR_NAV_AREA, STATUSBAR_AREAS } from "@hermes/plugin-sdk";
 
 // desktop-src/compose-workspace.tsx
-import React15, { useEffect as useEffect5, useRef as useRef5, useState as useState7, useSyncExternalStore as useSyncExternalStore2 } from "react";
+import React16, { useEffect as useEffect5, useMemo, useRef as useRef5, useState as useState7, useSyncExternalStore as useSyncExternalStore3 } from "react";
 
 // assets/studio-engine.ts
 var SOUND_EVENTS = ["onHover", "onFocus", "onCommit", "onToggle", "onError", "onBackgroundTaskComplete"];
@@ -8375,6 +8375,41 @@ function createComposition() {
 }
 
 // desktop-src/compose-view-model.ts
+function composeEditorSnapshot(read) {
+  let previous;
+  return () => {
+    const { positionBeat: _position, ...next } = read();
+    if (!previous || Object.entries(next).some(([key, value]) => previous[key] !== value)) previous = Object.freeze(next);
+    return previous;
+  };
+}
+function indexComposeNotes(notes2, total, selected) {
+  const cells = /* @__PURE__ */ new Map(), pitches = /* @__PURE__ */ new Set();
+  const velocity = [], counts = /* @__PURE__ */ new Map();
+  for (const note of notes2) {
+    pitches.add(note.pitch);
+    if (note.beat >= total) continue;
+    const offset = counts.get(note.beat) ?? 0;
+    counts.set(note.beat, offset + 1);
+    velocity.push({ note, offset });
+    let row = cells.get(note.pitch);
+    if (!row) {
+      row = /* @__PURE__ */ new Map();
+      cells.set(note.pitch, row);
+    }
+    const first = Math.max(0, Math.floor(note.beat * 2)), last = Math.min(Math.ceil(total * 2), Math.ceil((note.beat + note.duration) * 2));
+    for (let step = first; step < last; step++) {
+      let hits = row.get(step);
+      if (!hits) {
+        hits = [];
+        row.set(step, hits);
+      }
+      hits.push(note);
+    }
+  }
+  for (const row of cells.values()) for (const hits of row.values()) hits.sort((a, b) => Number(b.id === selected) - Number(a.id === selected) || b.beat - a.beat || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return { cells, pitches, velocity };
+}
 function notesInCell(notes2, beat, pitch, selected) {
   return notes2.filter((n) => n.pitch === pitch && n.beat < beat + 0.5 && n.beat + n.duration > beat).sort((a, b) => Number(b.id === selected) - Number(a.id === selected) || b.beat - a.beat || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
@@ -8409,6 +8444,24 @@ function transposeRoot(c, root) {
   return { ...c, root, layers: c.layers.map((l) => ({ ...l, notes: l.notes.map((n) => ({ ...n, pitch: n.pitch + delta })) })) };
 }
 var timingChanged = (before, after) => before.id !== after.id || before.tempo !== after.tempo || before.meter !== after.meter || before.bars !== after.bars || before.loopStart !== after.loopStart || before.loopEnd !== after.loopEnd;
+
+// desktop-src/compose-playhead.tsx
+import { useSyncExternalStore as useSyncExternalStore2 } from "react";
+import { Fragment as Fragment7, jsx as jsx16, jsxs as jsxs16 } from "react/jsx-runtime";
+var usePosition = (audio) => useSyncExternalStore2(audio.subscribe, () => audio.getSnapshot().positionBeat, () => 0);
+function ComposePlayhead({ audio, total, grid = false }) {
+  const position = usePosition(audio);
+  return /* @__PURE__ */ jsx16("i", { className: grid ? "cp-grid-playhead" : "cp-playhead", "aria-hidden": "true", style: { left: grid ? `calc(52px + (100% - 52px) * ${position / total})` : `${position / total * 100}%` } });
+}
+function ComposePosition({ audio }) {
+  return /* @__PURE__ */ jsxs16(Fragment7, { children: [
+    usePosition(audio).toFixed(1),
+    " beats"
+  ] });
+}
+function ComposeLoopBrace({ audio, ...props }) {
+  return /* @__PURE__ */ jsx16(LoopBrace, { ...props, position: usePosition(audio) });
+}
 
 // desktop-src/compose-live-cache.ts
 var COMPOSE_PCM_BUDGET = 96 * 1024 * 1024;
@@ -9203,7 +9256,7 @@ function createCompositionWavExporter(options) {
 }
 
 // desktop-src/compose-workspace.tsx
-import { Fragment as Fragment7, jsx as jsx16, jsxs as jsxs16 } from "react/jsx-runtime";
+import { Fragment as Fragment8, jsx as jsx17, jsxs as jsxs17 } from "react/jsx-runtime";
 var names = ["C", "C\u266F", "D", "D\u266F", "E", "F", "F\u266F", "G", "G\u266F", "A", "A\u266F", "B"];
 var composePitchName = (midi) => `${names[midi % 12]}${Math.floor(midi / 12) - 1}`;
 function newLayerName(layers, requested) {
@@ -9224,17 +9277,19 @@ function SoundWorkspace({ store, composeStore, writeClipboard, backgroundDrafts,
     composeStore.update((c) => ({ ...c, layers: [...c.layers, layer2], selectedLayer: layer2.id }));
     setTask("compose");
   };
-  const taskNavigation = /* @__PURE__ */ jsxs16(Fragment7, { children: [
-    /* @__PURE__ */ jsx16("button", { type: "button", "aria-pressed": task === "sound-design", onClick: () => setTask("sound-design"), children: "Sound Design" }),
-    /* @__PURE__ */ jsx16("button", { type: "button", "aria-pressed": task === "compose", onClick: () => setTask("compose"), children: "Compose" })
+  const taskNavigation = /* @__PURE__ */ jsxs17(Fragment8, { children: [
+    /* @__PURE__ */ jsx17("button", { type: "button", "aria-pressed": task === "sound-design", onClick: () => setTask("sound-design"), children: "Sound Design" }),
+    /* @__PURE__ */ jsx17("button", { type: "button", "aria-pressed": task === "compose", onClick: () => setTask("compose"), children: "Compose" })
   ] });
-  return /* @__PURE__ */ jsx16("div", { className: "sound-workspace", children: /* @__PURE__ */ jsx16("div", { className: "cp-task-body", children: task === "sound-design" ? /* @__PURE__ */ jsx16(SoundStudioView, { previewEngine: audioSession?.studio, desktopTarget, store, writeClipboard, backgroundDrafts, previewBridge, scopeKey, onUseInCompose: useSound, taskNavigation }) : /* @__PURE__ */ jsx16(ComposeWorkspace, { audioInstance: audioSession?.compose, scopeKey, store: composeStore, eventStore: store, writeClipboard, taskNavigation }, scopeKey) }) });
+  return /* @__PURE__ */ jsx17("div", { className: "sound-workspace", children: /* @__PURE__ */ jsx17("div", { className: "cp-task-body", children: task === "sound-design" ? /* @__PURE__ */ jsx17(SoundStudioView, { previewEngine: audioSession?.studio, desktopTarget, store, writeClipboard, backgroundDrafts, previewBridge, scopeKey, onUseInCompose: useSound, taskNavigation }) : /* @__PURE__ */ jsx17(ComposeWorkspace, { audioInstance: audioSession?.compose, scopeKey, store: composeStore, eventStore: store, writeClipboard, taskNavigation }, scopeKey) }) });
 }
 function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, scopeKey = "compose", audioInstance }) {
-  useSyncExternalStore2(store.subscribe, store.getSnapshot, store.getSnapshot);
-  useSyncExternalStore2(eventStore.subscribe, eventStore.getSnapshot, eventStore.getSnapshot);
+  useSyncExternalStore3(store.subscribe, store.getSnapshot, store.getSnapshot);
+  useSyncExternalStore3(eventStore.subscribe, eventStore.getSnapshot, eventStore.getSnapshot);
   const state = store.state, c = state.composition, layer2 = c.layers.find((l) => l.id === c.selectedLayer);
-  const [audio] = useState7(() => audioInstance ?? new ComposeAudio()), snapshot = useSyncExternalStore2(audio.subscribe, audio.getSnapshot, audio.getSnapshot);
+  const [audio] = useState7(() => audioInstance ?? new ComposeAudio());
+  const editorSnapshot = useMemo(() => composeEditorSnapshot(audio.getSnapshot), [audio]);
+  const snapshot = useSyncExternalStore3(audio.subscribe, editorSnapshot, editorSnapshot);
   const [gridOpen, setGridOpen] = useState7(true), [fold, setFold] = useState7(false), [scale, setScale] = useState7("minor"), [helpOpen, setHelpOpen] = useState7(false);
   const [statusHint, setStatusHint] = useState7("Drag values vertically \xB7 double-click to type \xB7 edits are silent");
   useEffect5(() => {
@@ -9256,6 +9311,7 @@ function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, s
   const [notice, setNotice] = useState7(""), [error, setError] = useState7(""), [saveName, setSaveName] = useState7(c.name), [drawer, setDrawer] = useState7(false);
   const [noteId, setNoteId] = useState7(null), [noteDuration, setNoteDuration] = useState7(1), [octave, setOctave] = useState7(3), [preset, setPreset] = useState7(""), [tailSeconds, setTailSeconds] = useState7({}), [showTails, setShowTails] = useState7(false);
   const note = layer2.notes.find((n) => n.id === noteId) ?? null, loopBeats = c.bars * c.meter, steps = loopBeats * 2;
+  const noteIndex = useMemo(() => indexComposeNotes(layer2.notes, loopBeats, noteId), [layer2.notes, loopBeats, noteId]);
   const previousLayer = useRef5(layer2.id), editorOpener = useRef5(null);
   const [solo, setSolo] = useState7(() => /* @__PURE__ */ new Set()), [preview, setPreview] = useState7(null), [overlapCell, setOverlapCell] = useState7(null);
   const drag = useRef5(null), suppressClick = useRef5(null);
@@ -9541,7 +9597,7 @@ function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, s
       setTimeout(() => URL.revokeObjectURL(url), 1e3);
     }
   };
-  const importControl = /* @__PURE__ */ jsx16(JsonFileImport, { help: "Composition/v1: replaces the complete arrangement, not event sounds. Detaches the previous named save.", options: {
+  const importControl = /* @__PURE__ */ jsx17(JsonFileImport, { help: "Composition/v1: replaces the complete arrangement, not event sounds. Detaches the previous named save.", options: {
     snapshot: () => ({ target: store, revision: store.getSnapshot(), scope: scopeKey, selection: JSON.stringify([store.state.composition.selectedLayer, live.current.note]) }),
     inScope: () => live.current.mounted && live.current.store === store && live.current.scope === scopeKey,
     validate: validateComposition,
@@ -9592,34 +9648,34 @@ function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, s
     });
   };
   const mixLayer = (id, patch) => change((value) => ({ ...value, layers: value.layers.map((l) => l.id === id ? { ...l, ...patch } : l) }));
-  const wavAction = /* @__PURE__ */ jsxs16(Fragment7, { children: [
-    /* @__PURE__ */ jsx16("button", { type: "button", title: "48 kHz stereo float WAV \xB7 active loop and effect tails \xB7 respects Mute and Solo", disabled: wavState.busy, onClick: () => void wavExporter.start(), children: wavState.busy ? "Exporting\u2026" : "\u2197 Export WAV" }),
-    wavState.busy && /* @__PURE__ */ jsx16("button", { onClick: () => wavExporter.cancel(), children: "Cancel" })
+  const wavAction = /* @__PURE__ */ jsxs17(Fragment8, { children: [
+    /* @__PURE__ */ jsx17("button", { type: "button", title: "48 kHz stereo float WAV \xB7 active loop and effect tails \xB7 respects Mute and Solo", disabled: wavState.busy, onClick: () => void wavExporter.start(), children: wavState.busy ? "Exporting\u2026" : "\u2197 Export WAV" }),
+    wavState.busy && /* @__PURE__ */ jsx17("button", { onClick: () => wavExporter.cancel(), children: "Cancel" })
   ] });
-  return /* @__PURE__ */ jsx16(ParameterScope, { identity: `${scopeKey}:${c.id}`, children: /* @__PURE__ */ jsxs16("div", { "data-sound-studio": "", "data-compose": "", onMouseOver: (e) => {
+  return /* @__PURE__ */ jsx17(ParameterScope, { identity: `${scopeKey}:${c.id}`, children: /* @__PURE__ */ jsxs17("div", { "data-sound-studio": "", "data-compose": "", onMouseOver: (e) => {
     const target = e.target.closest("[title]");
     if (target?.title) setStatusHint(target.title);
   }, onFocusCapture: (e) => {
     const target = e.target.closest("[title]");
     if (target?.title) setStatusHint(target.title);
   }, children: [
-    /* @__PURE__ */ jsx16(
+    /* @__PURE__ */ jsx17(
       StudioTopbar,
       {
         taskNavigation,
-        documentName: /* @__PURE__ */ jsx16("input", { className: "ss-document-name", type: "text", "aria-label": "Composition name", value: saveName, onChange: (e) => setSaveName(e.target.value) }),
+        documentName: /* @__PURE__ */ jsx17("input", { className: "ss-document-name", type: "text", "aria-label": "Composition name", value: saveName, onChange: (e) => setSaveName(e.target.value) }),
         saveStatus: `${saveStatus} \xB7 ${state.status}`,
         unsaved: unsavedComposition,
-        saveAction: /* @__PURE__ */ jsx16("button", { className: "ss-primary", type: "button", onClick: () => store.save(saveName), children: "Save composition" }),
-        documentActions: /* @__PURE__ */ jsxs16(Fragment7, { children: [
-          /* @__PURE__ */ jsx16("button", { type: "button", onClick: () => replaceDocument(), children: "New composition" }),
-          /* @__PURE__ */ jsx16("button", { type: "button", disabled: !state.canUndo, onClick: undo, children: "Undo" }),
-          /* @__PURE__ */ jsx16("button", { type: "button", onClick: () => void exportJson(), children: "Copy JSON" }),
-          /* @__PURE__ */ jsx16("button", { type: "button", onClick: download, children: "Download JSON" }),
+        saveAction: /* @__PURE__ */ jsx17("button", { className: "ss-primary", type: "button", onClick: () => store.save(saveName), children: "Save composition" }),
+        documentActions: /* @__PURE__ */ jsxs17(Fragment8, { children: [
+          /* @__PURE__ */ jsx17("button", { type: "button", onClick: () => replaceDocument(), children: "New composition" }),
+          /* @__PURE__ */ jsx17("button", { type: "button", disabled: !state.canUndo, onClick: undo, children: "Undo" }),
+          /* @__PURE__ */ jsx17("button", { type: "button", onClick: () => void exportJson(), children: "Copy JSON" }),
+          /* @__PURE__ */ jsx17("button", { type: "button", onClick: download, children: "Download JSON" }),
           importControl,
-          /* @__PURE__ */ jsx16("h3", { children: "Saved compositions" }),
-          state.compositions.length ? state.compositions.map((row) => /* @__PURE__ */ jsx16("button", { type: "button", onClick: () => replaceDocument(row.id), children: row.name }, row.id)) : /* @__PURE__ */ jsx16("small", { children: "No named compositions yet." }),
-          /* @__PURE__ */ jsxs16("small", { children: [
+          /* @__PURE__ */ jsx17("h3", { children: "Saved compositions" }),
+          state.compositions.length ? state.compositions.map((row) => /* @__PURE__ */ jsx17("button", { type: "button", onClick: () => replaceDocument(row.id), children: row.name }, row.id)) : /* @__PURE__ */ jsx17("small", { children: "No named compositions yet." }),
+          /* @__PURE__ */ jsxs17("small", { children: [
             "Recovery: ",
             state.recovery,
             ". Save creates a named composition."
@@ -9628,174 +9684,174 @@ function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, s
       }
     ),
     review.prompt,
-    /* @__PURE__ */ jsxs16("div", { className: "ss-shell", children: [
-      (state.error || error || snapshot.error || snapshot.updateError || wavState.error) && /* @__PURE__ */ jsx16("div", { className: "ss-alert", role: "alert", children: [state.error, error, snapshot.error, snapshot.updateError, wavState.error].filter(Boolean).join(" \xB7 ") }),
-      wavState.message && /* @__PURE__ */ jsx16("div", { className: "ss-notice", role: "status", children: wavState.message }),
-      /* @__PURE__ */ jsxs16("div", { ref: sessionContext, className: "cp-session-context", children: [
-        /* @__PURE__ */ jsx16("section", { className: "cp-transport", "aria-label": "Composition transport", children: /* @__PURE__ */ jsxs16("div", { className: "cp-actions", children: [
-          needsAudio && /* @__PURE__ */ jsx16("button", { type: "button", title: "Enable local audio \xB7 silent until Play", disabled: snapshot.pending, onClick: () => void audio.enable(), children: "Enable audio" }),
-          /* @__PURE__ */ jsx16("button", { type: "button", className: "cp-play", "aria-label": "Play loop", title: "Play loop", "aria-pressed": snapshot.playing, disabled: needsAudio || transportBusy, onClick: () => {
+    /* @__PURE__ */ jsxs17("div", { className: "ss-shell", children: [
+      (state.error || error || snapshot.error || snapshot.updateError || wavState.error) && /* @__PURE__ */ jsx17("div", { className: "ss-alert", role: "alert", children: [state.error, error, snapshot.error, snapshot.updateError, wavState.error].filter(Boolean).join(" \xB7 ") }),
+      wavState.message && /* @__PURE__ */ jsx17("div", { className: "ss-notice", role: "status", children: wavState.message }),
+      /* @__PURE__ */ jsxs17("div", { ref: sessionContext, className: "cp-session-context", children: [
+        /* @__PURE__ */ jsx17("section", { className: "cp-transport", "aria-label": "Composition transport", children: /* @__PURE__ */ jsxs17("div", { className: "cp-actions", children: [
+          needsAudio && /* @__PURE__ */ jsx17("button", { type: "button", title: "Enable local audio \xB7 silent until Play", disabled: snapshot.pending, onClick: () => void audio.enable(), children: "Enable audio" }),
+          /* @__PURE__ */ jsx17("button", { type: "button", className: "cp-play", "aria-label": "Play loop", title: "Play loop", "aria-pressed": snapshot.playing, disabled: needsAudio || transportBusy, onClick: () => {
             audio.setComposition(store.state.composition);
             void audio.play();
           }, children: "\u25B6" }),
-          /* @__PURE__ */ jsx16("button", { type: "button", "aria-label": "Stop", title: "Stop loop and reset playhead", disabled: !transportBusy, onClick: () => audio.stop(), children: "\u25A0" }),
-          /* @__PURE__ */ jsx16("button", { type: "button", "aria-label": "Mute audio", title: "Mute local audio", disabled: snapshot.muted, onClick: () => audio.mute(), children: "\u25D6\xD7" }),
-          /* @__PURE__ */ jsx16("span", { className: "cp-ready-dot", "data-playing": snapshot.playing, title: readiness })
+          /* @__PURE__ */ jsx17("button", { type: "button", "aria-label": "Stop", title: "Stop loop and reset playhead", disabled: !transportBusy, onClick: () => audio.stop(), children: "\u25A0" }),
+          /* @__PURE__ */ jsx17("button", { type: "button", "aria-label": "Mute audio", title: "Mute local audio", disabled: snapshot.muted, onClick: () => audio.mute(), children: "\u25D6\xD7" }),
+          /* @__PURE__ */ jsx17("span", { className: "cp-ready-dot", "data-playing": snapshot.playing, title: readiness })
         ] }) }),
-        /* @__PURE__ */ jsxs16("section", { className: "cp-lcds", "aria-label": "Musical timing", children: [
-          /* @__PURE__ */ jsx16(DragValue, { id: "cp-tempo", label: "Tempo", value: c.tempo, min: 60, max: 200, step: 1, unit: " BPM", onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => change((value) => ({ ...value, tempo: v })) }),
-          /* @__PURE__ */ jsx16(DragValue, { id: "cp-meter", label: "Meter", value: c.meter, min: 3, max: 4, step: 1, display: (v) => `${v}/4`, onChange: (v) => setTiming(c.bars, v) }),
-          /* @__PURE__ */ jsx16(DragValue, { id: "cp-root", label: "Root", value: c.root, min: 36, max: 72, step: 1, display: composePitchName, parse: parsePitchName, onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => change((value) => transposeRoot(value, v)) }),
-          /* @__PURE__ */ jsx16(DragValue, { id: "cp-bars", label: "Loop length", value: c.bars, min: 1, max: MAX_COMPOSE_BARS, step: 1, unit: " Bars", onChange: (v) => setTiming(v, c.meter) })
+        /* @__PURE__ */ jsxs17("section", { className: "cp-lcds", "aria-label": "Musical timing", children: [
+          /* @__PURE__ */ jsx17(DragValue, { id: "cp-tempo", label: "Tempo", value: c.tempo, min: 60, max: 200, step: 1, unit: " BPM", onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => change((value) => ({ ...value, tempo: v })) }),
+          /* @__PURE__ */ jsx17(DragValue, { id: "cp-meter", label: "Meter", value: c.meter, min: 3, max: 4, step: 1, display: (v) => `${v}/4`, onChange: (v) => setTiming(c.bars, v) }),
+          /* @__PURE__ */ jsx17(DragValue, { id: "cp-root", label: "Root", value: c.root, min: 36, max: 72, step: 1, display: composePitchName, parse: parsePitchName, onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => change((value) => transposeRoot(value, v)) }),
+          /* @__PURE__ */ jsx17(DragValue, { id: "cp-bars", label: "Loop length", value: c.bars, min: 1, max: MAX_COMPOSE_BARS, step: 1, unit: " Bars", onChange: (v) => setTiming(v, c.meter) })
         ] }),
-        /* @__PURE__ */ jsxs16("div", { className: "cp-export-actions", children: [
+        /* @__PURE__ */ jsxs17("div", { className: "cp-export-actions", children: [
           wavAction,
-          /* @__PURE__ */ jsx16("button", { type: "button", "aria-label": "Studio help", "data-studio-help-toggle": "", "aria-expanded": helpOpen, onClick: () => setHelpOpen(!helpOpen), children: "?" })
+          /* @__PURE__ */ jsx17("button", { type: "button", "aria-label": "Studio help", "data-studio-help-toggle": "", "aria-expanded": helpOpen, onClick: () => setHelpOpen(!helpOpen), children: "?" })
         ] })
       ] }),
-      helpOpen && /* @__PURE__ */ jsxs16("aside", { className: "cp-help-pop", "aria-label": "Studio help", children: [
-        /* @__PURE__ */ jsx16("button", { type: "button", onClick: () => setHelpOpen(false), children: "Close help \xD7" }),
-        /* @__PURE__ */ jsx16("h3", { children: "Arrangement & notes" }),
-        /* @__PURE__ */ jsx16("p", { children: "Click an empty cell to add, or drag to set its length. First click selects a note; click its selected onset again to delete. Sustain clicks select. Shift-click or right-click deletes one note. Delete / Backspace acts only inside the grid." }),
-        /* @__PURE__ */ jsx16("p", { children: "Drag the loop brace handles to set the active range; click the ruler to seek. Notes outside the range stay in your composition. WAV exports the active range with effect tails. Timing changes stop playback." }),
-        /* @__PURE__ */ jsx16("p", { children: "Solid clips show musical duration. Optional dashed tails show representative buffer allowance, not measured audible duration. Layer levels feed the master; Solo is session-only and Mute wins." }),
-        /* @__PURE__ */ jsx16("p", { children: "Fold uses the displayed root and Minor/Major scale. Existing out-of-scale notes stay visible. Velocity stalks set note strength; overlapping notes keep separate stalks." })
+      helpOpen && /* @__PURE__ */ jsxs17("aside", { className: "cp-help-pop", "aria-label": "Studio help", children: [
+        /* @__PURE__ */ jsx17("button", { type: "button", onClick: () => setHelpOpen(false), children: "Close help \xD7" }),
+        /* @__PURE__ */ jsx17("h3", { children: "Arrangement & notes" }),
+        /* @__PURE__ */ jsx17("p", { children: "Click an empty cell to add, or drag to set its length. First click selects a note; click its selected onset again to delete. Sustain clicks select. Shift-click or right-click deletes one note. Delete / Backspace acts only inside the grid." }),
+        /* @__PURE__ */ jsx17("p", { children: "Drag the loop brace handles to set the active range; click the ruler to seek. Notes outside the range stay in your composition. WAV exports the active range with effect tails. Timing changes stop playback." }),
+        /* @__PURE__ */ jsx17("p", { children: "Solid clips show musical duration. Optional dashed tails show representative buffer allowance, not measured audible duration. Layer levels feed the master; Solo is session-only and Mute wins." }),
+        /* @__PURE__ */ jsx17("p", { children: "Fold uses the displayed root and Minor/Major scale. Existing out-of-scale notes stay visible. Velocity stalks set note strength; overlapping notes keep separate stalks." })
       ] }),
-      /* @__PURE__ */ jsxs16("section", { className: "ss-panel cp-arrangement-panel", children: [
-        /* @__PURE__ */ jsxs16("div", { className: "ss-section-head", children: [
-          /* @__PURE__ */ jsx16("h2", { children: "Arrangement" }),
-          /* @__PURE__ */ jsxs16("span", { className: "ss-muted", children: [
+      /* @__PURE__ */ jsxs17("section", { className: "ss-panel cp-arrangement-panel", children: [
+        /* @__PURE__ */ jsxs17("div", { className: "ss-section-head", children: [
+          /* @__PURE__ */ jsx17("h2", { children: "Arrangement" }),
+          /* @__PURE__ */ jsxs17("span", { className: "ss-muted", children: [
             c.layers.length,
             "/",
             MAX_COMPOSE_LAYERS
           ] }),
-          /* @__PURE__ */ jsx16("button", { ref: editorOpener, type: "button", "aria-expanded": drawer, onClick: () => drawer ? closeEditor() : setDrawer(true), children: drawer ? "Close sound editor" : "Edit sound" }),
-          /* @__PURE__ */ jsxs16("label", { className: "cp-tail-toggle", children: [
-            /* @__PURE__ */ jsx16("input", { type: "checkbox", checked: showTails, onChange: (e) => setShowTails(e.target.checked) }),
+          /* @__PURE__ */ jsx17("button", { ref: editorOpener, type: "button", "aria-expanded": drawer, onClick: () => drawer ? closeEditor() : setDrawer(true), children: drawer ? "Close sound editor" : "Edit sound" }),
+          /* @__PURE__ */ jsxs17("label", { className: "cp-tail-toggle", children: [
+            /* @__PURE__ */ jsx17("input", { type: "checkbox", checked: showTails, onChange: (e) => setShowTails(e.target.checked) }),
             " FX tails"
           ] })
         ] }),
-        /* @__PURE__ */ jsx16("div", { ref: arrangement, className: "cp-arrangement", tabIndex: 0, "aria-label": "Scrollable arrangement", children: /* @__PURE__ */ jsxs16("div", { className: "cp-timeline", style: { minWidth: 220 + loopBeats * 32 }, children: [
-          /* @__PURE__ */ jsxs16("div", { ref: ruler, className: "cp-ruler", "aria-label": "Bar and beat ruler", children: [
-            /* @__PURE__ */ jsx16("span", { children: "TRACK / MIX" }),
-            /* @__PURE__ */ jsxs16("div", { className: "cp-arrangement-scale", style: { gridTemplateColumns: `repeat(${loopBeats},minmax(32px,1fr))` }, children: [
-              Array.from({ length: c.bars }, (_, bar) => /* @__PURE__ */ jsxs16("span", { className: "cp-arrangement-bar", style: { gridColumn: `span ${c.meter}` }, children: [
+        /* @__PURE__ */ jsx17("div", { ref: arrangement, className: "cp-arrangement", tabIndex: 0, "aria-label": "Scrollable arrangement", children: /* @__PURE__ */ jsxs17("div", { className: "cp-timeline", style: { minWidth: 220 + loopBeats * 32 }, children: [
+          /* @__PURE__ */ jsxs17("div", { ref: ruler, className: "cp-ruler", "aria-label": "Bar and beat ruler", children: [
+            /* @__PURE__ */ jsx17("span", { children: "TRACK / MIX" }),
+            /* @__PURE__ */ jsxs17("div", { className: "cp-arrangement-scale", style: { gridTemplateColumns: `repeat(${loopBeats},minmax(32px,1fr))` }, children: [
+              Array.from({ length: c.bars }, (_, bar) => /* @__PURE__ */ jsxs17("span", { className: "cp-arrangement-bar", style: { gridColumn: `span ${c.meter}` }, children: [
                 "Bar ",
                 bar + 1
               ] }, `bar-${bar}`)),
-              Array.from({ length: loopBeats }, (_, i) => /* @__PURE__ */ jsx16("span", { className: "cp-arrangement-beat", "data-bar": i % c.meter === 0, children: i % c.meter + 1 }, i)),
-              /* @__PURE__ */ jsx16(LoopBrace, { start: window2.start, end: window2.end, total: loopBeats, position: snapshot.positionBeat, onChange: setLoop, onSeek: (beat) => audio.seek(beat), begin: () => store.beginGesture(), finish: () => store.endGesture() }, `${scopeKey}:${c.id}:${c.bars}:${c.meter}`)
+              Array.from({ length: loopBeats }, (_, i) => /* @__PURE__ */ jsx17("span", { className: "cp-arrangement-beat", "data-bar": i % c.meter === 0, children: i % c.meter + 1 }, i)),
+              /* @__PURE__ */ jsx17(ComposeLoopBrace, { audio, start: window2.start, end: window2.end, total: loopBeats, onChange: setLoop, onSeek: (beat) => audio.seek(beat), begin: () => store.beginGesture(), finish: () => store.endGesture() }, `${scopeKey}:${c.id}:${c.bars}:${c.meter}`)
             ] })
           ] }),
-          c.layers.map((l, index) => /* @__PURE__ */ jsxs16("div", { ref: l.id === layer2.id ? selectedLane : void 0, className: "cp-lane", "data-selected": l.id === layer2.id, "data-audible": layerAudible(l, solo), style: { "--cp-layer-color": /chord|pad|harmony/i.test(l.name) ? "#55d9de" : /lead|melod/i.test(l.name) ? "#ad91ef" : layerColor(l.id) }, children: [
-            /* @__PURE__ */ jsxs16("div", { className: "cp-track", "data-selected": l.id === layer2.id, children: [
-              /* @__PURE__ */ jsxs16("div", { className: "cp-track-top", children: [
-                /* @__PURE__ */ jsxs16("button", { className: "cp-track-select", type: "button", "aria-pressed": l.id === layer2.id, onClick: () => store.select(l.id), children: [
-                  /* @__PURE__ */ jsxs16("strong", { children: [
+          c.layers.map((l, index) => /* @__PURE__ */ jsxs17("div", { ref: l.id === layer2.id ? selectedLane : void 0, className: "cp-lane", "data-selected": l.id === layer2.id, "data-audible": layerAudible(l, solo), style: { "--cp-layer-color": /chord|pad|harmony/i.test(l.name) ? "#55d9de" : /lead|melod/i.test(l.name) ? "#ad91ef" : layerColor(l.id) }, children: [
+            /* @__PURE__ */ jsxs17("div", { className: "cp-track", "data-selected": l.id === layer2.id, children: [
+              /* @__PURE__ */ jsxs17("div", { className: "cp-track-top", children: [
+                /* @__PURE__ */ jsxs17("button", { className: "cp-track-select", type: "button", "aria-pressed": l.id === layer2.id, onClick: () => store.select(l.id), children: [
+                  /* @__PURE__ */ jsxs17("strong", { children: [
                     String(index + 1).padStart(2, "0"),
                     " \xB7 ",
                     l.name
                   ] }),
-                  /* @__PURE__ */ jsx16("small", { children: l.patch.name })
+                  /* @__PURE__ */ jsx17("small", { children: l.patch.name })
                 ] }),
-                /* @__PURE__ */ jsxs16("details", { className: "cp-track-menu", onClick: (e) => {
+                /* @__PURE__ */ jsxs17("details", { className: "cp-track-menu", onClick: (e) => {
                   if (e.target.closest("button:not(:disabled)")) e.currentTarget.open = false;
                 }, children: [
-                  /* @__PURE__ */ jsx16("summary", { "aria-label": `Actions for ${l.name}`, title: "Duplicate or delete this layer", children: "\xB7\xB7\xB7" }),
-                  /* @__PURE__ */ jsxs16("div", { children: [
-                    /* @__PURE__ */ jsx16("button", { disabled: c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => add({ ...duplicateLayer(l, false), name: `${l.name.slice(0, 75)} copy` }), children: "Duplicate sound" }),
-                    /* @__PURE__ */ jsx16("button", { disabled: c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => add({ ...duplicateLayer(l, true), name: `${l.name.slice(0, 75)} copy` }), children: "Duplicate sound + pattern" }),
-                    /* @__PURE__ */ jsx16("button", { className: "ss-danger", disabled: c.layers.length === 1, onClick: () => deleteLayer(l.id), children: "Delete layer" })
+                  /* @__PURE__ */ jsx17("summary", { "aria-label": `Actions for ${l.name}`, title: "Duplicate or delete this layer", children: "\xB7\xB7\xB7" }),
+                  /* @__PURE__ */ jsxs17("div", { children: [
+                    /* @__PURE__ */ jsx17("button", { disabled: c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => add({ ...duplicateLayer(l, false), name: `${l.name.slice(0, 75)} copy` }), children: "Duplicate sound" }),
+                    /* @__PURE__ */ jsx17("button", { disabled: c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => add({ ...duplicateLayer(l, true), name: `${l.name.slice(0, 75)} copy` }), children: "Duplicate sound + pattern" }),
+                    /* @__PURE__ */ jsx17("button", { className: "ss-danger", disabled: c.layers.length === 1, onClick: () => deleteLayer(l.id), children: "Delete layer" })
                   ] })
                 ] })
               ] }),
-              /* @__PURE__ */ jsxs16("div", { className: "cp-track-controls", children: [
-                /* @__PURE__ */ jsx16("button", { type: "button", title: `Mute ${l.name}`, "aria-label": `Mute ${l.name}`, "aria-pressed": l.muted, onClick: () => mixLayer(l.id, { muted: !l.muted }), children: "M" }),
-                /* @__PURE__ */ jsx16("button", { type: "button", title: `Solo ${l.name}`, "aria-label": `Solo ${l.name}`, "aria-pressed": solo.has(l.id), onClick: () => setSolo((current) => {
+              /* @__PURE__ */ jsxs17("div", { className: "cp-track-controls", children: [
+                /* @__PURE__ */ jsx17("button", { type: "button", title: `Mute ${l.name}`, "aria-label": `Mute ${l.name}`, "aria-pressed": l.muted, onClick: () => mixLayer(l.id, { muted: !l.muted }), children: "M" }),
+                /* @__PURE__ */ jsx17("button", { type: "button", title: `Solo ${l.name}`, "aria-label": `Solo ${l.name}`, "aria-pressed": solo.has(l.id), onClick: () => setSolo((current) => {
                   const next = new Set(current);
                   if (next.has(l.id)) next.delete(l.id);
                   else next.add(l.id);
                   return next;
                 }), children: "S" }),
-                /* @__PURE__ */ jsx16(DragValue, { id: `cp-level-${l.id}`, label: "Level", value: l.gainDb, min: -48, max: 6, step: 0.1, unit: " dB", onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => mixLayer(l.id, { gainDb: v }) }),
-                /* @__PURE__ */ jsx16(ParameterKnob, { id: `cp-pan-${l.id}`, label: "Pan", help: "Stereo position, after the layer level and before master output. Center = 0.", value: l.pan ?? 0, min: -1, max: 1, step: 0.01, onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => mixLayer(l.id, { pan: v }) })
+                /* @__PURE__ */ jsx17(DragValue, { id: `cp-level-${l.id}`, label: "Level", value: l.gainDb, min: -48, max: 6, step: 0.1, unit: " dB", onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => mixLayer(l.id, { gainDb: v }) }),
+                /* @__PURE__ */ jsx17(ParameterKnob, { id: `cp-pan-${l.id}`, label: "Pan", help: "Stereo position, after the layer level and before master output. Center = 0.", value: l.pan ?? 0, min: -1, max: 1, step: 0.01, onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => mixLayer(l.id, { pan: v }) })
               ] }),
-              /* @__PURE__ */ jsx16(TrackMeter, { read: audio.readLevel, id: l.id })
+              /* @__PURE__ */ jsx17(TrackMeter, { read: audio.readLevel, id: l.id })
             ] }),
-            /* @__PURE__ */ jsxs16("div", { className: "cp-clips", style: { "--cp-beat-width": `${100 / loopBeats}%`, "--cp-bar-width": `${100 / c.bars}%` }, children: [
+            /* @__PURE__ */ jsxs17("div", { className: "cp-clips", style: { "--cp-beat-width": `${100 / loopBeats}%`, "--cp-bar-width": `${100 / c.bars}%` }, children: [
               l.notes.filter((n) => n.beat < loopBeats).map((n) => {
                 const body = n.duration, tail = showTails ? (tailSeconds[l.id] ?? 0) * c.tempo / 60 : 0, total = body + tail;
-                return /* @__PURE__ */ jsxs16("button", { type: "button", className: "cp-note", "aria-label": `${l.name}: ${composePitchName(n.pitch)}, bar ${Math.floor(n.beat / c.meter) + 1}, ${beatsLabel(n.duration)}`, "aria-pressed": l.id === layer2.id && n.id === noteId, onClick: () => {
+                return /* @__PURE__ */ jsxs17("button", { type: "button", className: "cp-note", "aria-label": `${l.name}: ${composePitchName(n.pitch)}, bar ${Math.floor(n.beat / c.meter) + 1}, ${beatsLabel(n.duration)}`, "aria-pressed": l.id === layer2.id && n.id === noteId, onClick: () => {
                   if (l.id !== layer2.id) store.select(l.id);
                   setNoteId(n.id);
                   setGridOpen(true);
                   setOverlapCell({ beat: n.beat, pitch: n.pitch });
                   setOctave(Math.floor(n.pitch / 12) - 1);
                 }, style: { left: `${n.beat / loopBeats * 100}%`, width: `${total / loopBeats * 100}%`, top: pitchTop(n.pitch), zIndex: l.id === layer2.id && n.id === noteId ? 2 : 1 }, children: [
-                  /* @__PURE__ */ jsx16("span", { "data-compose-body": "", style: { width: `${body / total * 100}%` }, children: composePitchName(n.pitch) }),
-                  /* @__PURE__ */ jsx16("span", { "data-compose-tail": "", hidden: !showTails, style: { width: `${tail / total * 100}%` } })
+                  /* @__PURE__ */ jsx17("span", { "data-compose-body": "", style: { width: `${body / total * 100}%` }, children: composePitchName(n.pitch) }),
+                  /* @__PURE__ */ jsx17("span", { "data-compose-tail": "", hidden: !showTails, style: { width: `${tail / total * 100}%` } })
                 ] }, n.id);
               }),
-              /* @__PURE__ */ jsx16("i", { className: "cp-playhead", style: { left: `${snapshot.positionBeat / loopBeats * 100}%` } })
+              /* @__PURE__ */ jsx17(ComposePlayhead, { audio, total: loopBeats })
             ] })
           ] }, l.id)),
-          /* @__PURE__ */ jsxs16("div", { className: "cp-add-row", children: [
-            /* @__PURE__ */ jsxs16("details", { className: "cp-add-menu", onClick: (e) => {
+          /* @__PURE__ */ jsxs17("div", { className: "cp-add-row", children: [
+            /* @__PURE__ */ jsxs17("details", { className: "cp-add-menu", onClick: (e) => {
               if (e.target.closest("button:not(:disabled)")) e.currentTarget.open = false;
             }, children: [
-              /* @__PURE__ */ jsx16("summary", { children: "+ Add Layer" }),
-              /* @__PURE__ */ jsxs16("div", { children: [
-                /* @__PURE__ */ jsx16("button", { type: "button", disabled: c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => add(createLayer(void 0, "Blank sound")), children: "Add blank layer" }),
-                /* @__PURE__ */ jsxs16("select", { "aria-label": "New layer from sound preset", value: preset, onChange: (e) => setPreset(e.target.value), children: [
-                  /* @__PURE__ */ jsx16("option", { value: "", children: "Saved sound\u2026" }),
-                  eventStore.state.presets.map((p) => /* @__PURE__ */ jsx16("option", { value: p.id, children: p.name }, p.id))
+              /* @__PURE__ */ jsx17("summary", { children: "+ Add Layer" }),
+              /* @__PURE__ */ jsxs17("div", { children: [
+                /* @__PURE__ */ jsx17("button", { type: "button", disabled: c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => add(createLayer(void 0, "Blank sound")), children: "Add blank layer" }),
+                /* @__PURE__ */ jsxs17("select", { "aria-label": "New layer from sound preset", value: preset, onChange: (e) => setPreset(e.target.value), children: [
+                  /* @__PURE__ */ jsx17("option", { value: "", children: "Saved sound\u2026" }),
+                  eventStore.state.presets.map((p) => /* @__PURE__ */ jsx17("option", { value: p.id, children: p.name }, p.id))
                 ] }),
-                /* @__PURE__ */ jsx16("button", { disabled: !preset || c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => {
+                /* @__PURE__ */ jsx17("button", { disabled: !preset || c.layers.length >= MAX_COMPOSE_LAYERS, onClick: () => {
                   const p = eventStore.state.presets.find((item) => item.id === preset);
                   if (p) add(createLayer(p.patch, p.name));
                 }, children: "Add preset layer" })
               ] })
             ] }),
-            /* @__PURE__ */ jsx16("small", { children: c.layers.length >= MAX_COMPOSE_LAYERS ? "Layer limit reached" : "Select a track to edit its pattern below" })
+            /* @__PURE__ */ jsx17("small", { children: c.layers.length >= MAX_COMPOSE_LAYERS ? "Layer limit reached" : "Select a track to edit its pattern below" })
           ] })
         ] }) })
       ] }),
-      /* @__PURE__ */ jsxs16("div", { className: "cp-editing-dock", "data-editor-open": drawer, "data-grid-open": gridOpen, children: [
-        /* @__PURE__ */ jsxs16("section", { ref: gridAnchor, className: "ss-panel cp-grid-panel", tabIndex: -1, "aria-label": "Step grid editor", style: { "--cp-layer-color": layerColor(layer2.id) }, children: [
-          /* @__PURE__ */ jsxs16("div", { className: "ss-section-head", children: [
-            /* @__PURE__ */ jsxs16("button", { type: "button", className: "cp-drawer-toggle", "aria-expanded": gridOpen, onClick: () => setGridOpen(!gridOpen), children: [
+      /* @__PURE__ */ jsxs17("div", { className: "cp-editing-dock", "data-editor-open": drawer, "data-grid-open": gridOpen, children: [
+        /* @__PURE__ */ jsxs17("section", { ref: gridAnchor, className: "ss-panel cp-grid-panel", tabIndex: -1, "aria-label": "Step grid editor", style: { "--cp-layer-color": layerColor(layer2.id) }, children: [
+          /* @__PURE__ */ jsxs17("div", { className: "ss-section-head", children: [
+            /* @__PURE__ */ jsxs17("button", { type: "button", className: "cp-drawer-toggle", "aria-expanded": gridOpen, onClick: () => setGridOpen(!gridOpen), children: [
               gridOpen ? "\u25BE" : "\u25B8",
               " Step Grid \xB7 ",
               layer2.name
             ] }),
-            /* @__PURE__ */ jsxs16("label", { className: "cp-layer-name", children: [
+            /* @__PURE__ */ jsxs17("label", { className: "cp-layer-name", children: [
               "Name ",
-              /* @__PURE__ */ jsx16("input", { "aria-label": "Layer name", type: "text", value: layer2.name, onChange: (e) => editLayer((l) => ({ ...l, name: e.target.value })) })
+              /* @__PURE__ */ jsx17("input", { "aria-label": "Layer name", type: "text", value: layer2.name, onChange: (e) => editLayer((l) => ({ ...l, name: e.target.value })) })
             ] })
           ] }),
-          gridOpen && /* @__PURE__ */ jsxs16("div", { className: "cp-grid-content", children: [
-            /* @__PURE__ */ jsxs16("div", { className: "cp-entry", children: [
-              /* @__PURE__ */ jsxs16("div", { className: "cp-grid-area", children: [
-                /* @__PURE__ */ jsxs16("div", { className: "cp-actions cp-grid-toolbar", children: [
-                  /* @__PURE__ */ jsx16(DragValue, { id: "cp-octave", label: "Octave", value: octave, min: 1, max: 6, step: 1, onChange: (v) => {
+          gridOpen && /* @__PURE__ */ jsxs17("div", { className: "cp-grid-content", children: [
+            /* @__PURE__ */ jsxs17("div", { className: "cp-entry", children: [
+              /* @__PURE__ */ jsxs17("div", { className: "cp-grid-area", children: [
+                /* @__PURE__ */ jsxs17("div", { className: "cp-actions cp-grid-toolbar", children: [
+                  /* @__PURE__ */ jsx17(DragValue, { id: "cp-octave", label: "Octave", value: octave, min: 1, max: 6, step: 1, onChange: (v) => {
                     cancelDrag();
                     setOctave(v);
                   } }),
-                  /* @__PURE__ */ jsx16(DragValue, { id: "cp-note-length", label: "New note", value: noteDuration, min: 0.25, max: 4, step: 0.25, unit: " beats", onChange: setNoteDuration }),
-                  /* @__PURE__ */ jsx16("button", { type: "button", "aria-pressed": fold, onClick: () => setFold(!fold), title: "Fold to scale \xB7 existing out-of-scale notes stay visible", children: "Fold to Scale" }),
-                  /* @__PURE__ */ jsxs16("select", { "aria-label": "Scale", value: scale, onChange: (e) => setScale(e.target.value), children: [
-                    /* @__PURE__ */ jsxs16("option", { value: "minor", children: [
+                  /* @__PURE__ */ jsx17(DragValue, { id: "cp-note-length", label: "New note", value: noteDuration, min: 0.25, max: 4, step: 0.25, unit: " beats", onChange: setNoteDuration }),
+                  /* @__PURE__ */ jsx17("button", { type: "button", "aria-pressed": fold, onClick: () => setFold(!fold), title: "Fold to scale \xB7 existing out-of-scale notes stay visible", children: "Fold to Scale" }),
+                  /* @__PURE__ */ jsxs17("select", { "aria-label": "Scale", value: scale, onChange: (e) => setScale(e.target.value), children: [
+                    /* @__PURE__ */ jsxs17("option", { value: "minor", children: [
                       names[c.root % 12],
                       " Minor"
                     ] }),
-                    /* @__PURE__ */ jsxs16("option", { value: "major", children: [
+                    /* @__PURE__ */ jsxs17("option", { value: "major", children: [
                       names[c.root % 12],
                       " Major"
                     ] })
                   ] }),
-                  /* @__PURE__ */ jsx16("small", { children: note ? `${composePitchName(note.pitch)} \xB7 ${Math.round(note.velocity * 100)}% velocity` : "Select a note" })
+                  /* @__PURE__ */ jsx17("small", { children: note ? `${composePitchName(note.pitch)} \xB7 ${Math.round(note.velocity * 100)}% velocity` : "Select a note" })
                 ] }),
-                /* @__PURE__ */ jsx16("div", { className: "cp-grid-scroll", onScroll: (e) => {
+                /* @__PURE__ */ jsx17("div", { className: "cp-grid-scroll", onScroll: (e) => {
                   const lane = e.currentTarget.nextElementSibling;
                   if (lane) lane.scrollLeft = e.currentTarget.scrollLeft;
                 }, tabIndex: 0, "aria-label": "Step grid", onKeyDown: (e) => {
@@ -9804,19 +9860,19 @@ function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, s
                     e.preventDefault();
                     removeNote(note.id);
                   }
-                }, children: /* @__PURE__ */ jsxs16("div", { className: "cp-grid", style: { gridTemplateColumns: `52px repeat(${steps},minmax(32px,1fr))`, minWidth: 52 + steps * 32 }, children: [
-                  /* @__PURE__ */ jsx16("span", { className: "cp-grid-corner", children: "Bar" }),
-                  Array.from({ length: c.bars }, (_, bar) => /* @__PURE__ */ jsxs16("span", { className: "cp-grid-bar", style: { gridColumn: `span ${c.meter * 2}` }, children: [
+                }, children: /* @__PURE__ */ jsxs17("div", { className: "cp-grid", style: { gridTemplateColumns: `52px repeat(${steps},minmax(32px,1fr))`, minWidth: 52 + steps * 32 }, children: [
+                  /* @__PURE__ */ jsx17("span", { className: "cp-grid-corner", children: "Bar" }),
+                  Array.from({ length: c.bars }, (_, bar) => /* @__PURE__ */ jsxs17("span", { className: "cp-grid-bar", style: { gridColumn: `span ${c.meter * 2}` }, children: [
                     "Bar ",
                     bar + 1
                   ] }, `bar-${bar}`)),
-                  /* @__PURE__ */ jsx16("span", { className: "cp-grid-corner cp-grid-beat-label", children: "Beat / &" }),
-                  Array.from({ length: steps }, (_, i) => /* @__PURE__ */ jsx16("span", { className: "cp-grid-subdivision", "data-bar": i % (c.meter * 2) === 0, children: i % 2 === 0 ? i / 2 % c.meter + 1 : "&" }, i)),
-                  Array.from({ length: 12 }, (_, i) => (octave + 1) * 12 + 11 - i).filter((pitch) => !fold || scaleNotes.includes((pitch - c.root % 12 + 12) % 12) || layer2.notes.some((n) => n.pitch === pitch)).map((pitch) => /* @__PURE__ */ jsxs16(React15.Fragment, { children: [
-                    /* @__PURE__ */ jsx16("span", { className: "cp-grid-pitch", "data-black": [1, 3, 6, 8, 10].includes(pitch % 12), "data-outscale": !scaleNotes.includes((pitch - c.root % 12 + 12) % 12), children: composePitchName(pitch) }),
+                  /* @__PURE__ */ jsx17("span", { className: "cp-grid-corner cp-grid-beat-label", children: "Beat / &" }),
+                  Array.from({ length: steps }, (_, i) => /* @__PURE__ */ jsx17("span", { className: "cp-grid-subdivision", "data-bar": i % (c.meter * 2) === 0, children: i % 2 === 0 ? i / 2 % c.meter + 1 : "&" }, i)),
+                  Array.from({ length: 12 }, (_, i) => (octave + 1) * 12 + 11 - i).filter((pitch) => !fold || scaleNotes.includes((pitch - c.root % 12 + 12) % 12) || noteIndex.pitches.has(pitch)).map((pitch) => /* @__PURE__ */ jsxs17(React16.Fragment, { children: [
+                    /* @__PURE__ */ jsx17("span", { className: "cp-grid-pitch", "data-black": [1, 3, 6, 8, 10].includes(pitch % 12), "data-outscale": !scaleNotes.includes((pitch - c.root % 12 + 12) % 12), children: composePitchName(pitch) }),
                     Array.from({ length: steps }, (_, step) => {
-                      const beat = step / 2, hits = notesInCell(layer2.notes, beat, pitch, noteId), hit = hits[0], coverage = hit ? cellCoverage(hit, beat) : null, ghost = preview?.pitch === pitch ? cellCoverage(preview, beat) : null, selected = !!hit && hit.id === noteId;
-                      return /* @__PURE__ */ jsxs16(
+                      const beat = step / 2, hits = noteIndex.cells.get(pitch)?.get(step) ?? [], hit = hits[0], coverage = hit ? cellCoverage(hit, beat) : null, ghost = preview?.pitch === pitch ? cellCoverage(preview, beat) : null, selected = !!hit && hit.id === noteId;
+                      return /* @__PURE__ */ jsxs17(
                         "button",
                         {
                           type: "button",
@@ -9851,83 +9907,81 @@ function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, s
                           onPointerCancel: cancelDrag,
                           onLostPointerCapture: cancelDrag,
                           children: [
-                            coverage && /* @__PURE__ */ jsx16("span", { className: "cp-grid-body", "data-note-onset": coverage.onset, style: { left: `${coverage.left * 100}%`, width: `${coverage.width * 100}%` }, "aria-hidden": "true", children: coverage.onset ? selected ? "\u25C6" : "\u25CF" : "\u2501" }),
-                            ghost && /* @__PURE__ */ jsx16("span", { className: "cp-grid-preview", "data-note-preview": "", style: { left: `${ghost.left * 100}%`, width: `${ghost.width * 100}%` }, "aria-hidden": "true" }),
-                            hits.length > 1 && /* @__PURE__ */ jsx16("small", { className: "cp-overlap-count", "aria-hidden": "true", children: hits.length })
+                            coverage && /* @__PURE__ */ jsx17("span", { className: "cp-grid-body", "data-note-onset": coverage.onset, style: { left: `${coverage.left * 100}%`, width: `${coverage.width * 100}%` }, "aria-hidden": "true", children: coverage.onset ? selected ? "\u25C6" : "\u25CF" : "\u2501" }),
+                            ghost && /* @__PURE__ */ jsx17("span", { className: "cp-grid-preview", "data-note-preview": "", style: { left: `${ghost.left * 100}%`, width: `${ghost.width * 100}%` }, "aria-hidden": "true" }),
+                            hits.length > 1 && /* @__PURE__ */ jsx17("small", { className: "cp-overlap-count", "aria-hidden": "true", children: hits.length })
                           ]
                         },
                         step
                       );
                     })
                   ] }, pitch)),
-                  /* @__PURE__ */ jsx16("i", { className: "cp-grid-playhead", "aria-hidden": "true", style: { left: `calc(52px + (100% - 52px) * ${snapshot.positionBeat / loopBeats})` } })
+                  /* @__PURE__ */ jsx17(ComposePlayhead, { audio, total: loopBeats, grid: true })
                 ] }) }),
-                /* @__PURE__ */ jsx16("div", { className: "cp-velocity-scroll", children: /* @__PURE__ */ jsxs16("div", { className: "cp-velocity-lane", "aria-label": "Note velocity lane", style: { minWidth: 52 + steps * 32 }, children: [
-                  /* @__PURE__ */ jsx16("span", { children: "VEL" }),
-                  /* @__PURE__ */ jsx16("div", { children: layer2.notes.filter((n) => n.beat < loopBeats).map((n, index, all) => {
-                    const group = all.filter((other) => other.beat === n.beat), offset = group.findIndex((other) => other.id === n.id);
-                    return /* @__PURE__ */ jsx16("input", { type: "range", "aria-label": `Velocity ${composePitchName(n.pitch)} at beat ${Number(n.beat.toFixed(2))}`, title: `${composePitchName(n.pitch)} \xB7 ${Math.round(n.velocity * 100)}% \xB7 drag stalk to set velocity`, min: 0.1, max: 1, step: 0.05, value: n.velocity, style: { left: `calc(${n.beat / loopBeats * 100}% + ${offset * 8}px)`, "--velocity": `${n.velocity * 100}%` }, onPointerDown: () => {
+                /* @__PURE__ */ jsx17("div", { className: "cp-velocity-scroll", children: /* @__PURE__ */ jsxs17("div", { className: "cp-velocity-lane", "aria-label": "Note velocity lane", style: { minWidth: 52 + steps * 32 }, children: [
+                  /* @__PURE__ */ jsx17("span", { children: "VEL" }),
+                  /* @__PURE__ */ jsx17("div", { children: noteIndex.velocity.map(({ note: n, offset }) => {
+                    return /* @__PURE__ */ jsx17("input", { type: "range", "aria-label": `Velocity ${composePitchName(n.pitch)} at beat ${Number(n.beat.toFixed(2))}`, title: `${composePitchName(n.pitch)} \xB7 ${Math.round(n.velocity * 100)}% \xB7 drag stalk to set velocity`, min: 0.1, max: 1, step: 0.05, value: n.velocity, style: { left: `calc(${n.beat / loopBeats * 100}% + ${offset * 8}px)`, "--velocity": `${n.velocity * 100}%` }, onPointerDown: () => {
                       store.beginGesture();
                       setNoteId(n.id);
                     }, onPointerUp: () => store.endGesture(), onPointerCancel: () => store.endGesture(), onBlur: () => store.endGesture(), onChange: (e) => editLayer((l) => ({ ...l, notes: l.notes.map((row) => row.id === n.id ? { ...row, velocity: Number(e.target.value) } : row) })) }, n.id);
                   }) })
                 ] }) }),
-                overlaps.length > 1 && /* @__PURE__ */ jsxs16("div", { className: "cp-actions", children: [
-                  /* @__PURE__ */ jsxs16("span", { children: [
+                overlaps.length > 1 && /* @__PURE__ */ jsxs17("div", { className: "cp-actions", children: [
+                  /* @__PURE__ */ jsxs17("span", { children: [
                     overlaps.findIndex((n) => n.id === noteId) + 1,
                     "/",
                     overlaps.length,
                     " overlapping"
                   ] }),
-                  /* @__PURE__ */ jsx16("button", { onClick: () => cycleOverlap(-1), children: "Previous" }),
-                  /* @__PURE__ */ jsx16("button", { onClick: () => cycleOverlap(1), children: "Next" })
+                  /* @__PURE__ */ jsx17("button", { onClick: () => cycleOverlap(-1), children: "Previous" }),
+                  /* @__PURE__ */ jsx17("button", { onClick: () => cycleOverlap(1), children: "Next" })
                 ] })
               ] }),
-              /* @__PURE__ */ jsxs16("aside", { className: "cp-note-editor", "aria-label": "Selected note", children: [
-                /* @__PURE__ */ jsx16("h3", { children: note ? `${composePitchName(note.pitch)} \xB7 selected note` : "Select a note in the grid or arrangement" }),
-                note ? /* @__PURE__ */ jsxs16(Fragment7, { children: [
-                  /* @__PURE__ */ jsx16(NumericControl, { scopeIdentity: `${scopeKey}:${c.id}:${layer2.id}:${note.id}`, id: "cp-note-pitch", label: "Pitch (MIDI)", value: note.pitch, min: 28, max: 84, step: 1, help: "Absolute pitch before effects.", onChange: (v) => editNote((n) => ({ ...n, pitch: v })) }, `${layer2.id}-${note.id}-pitch`),
-                  noteOut ? /* @__PURE__ */ jsxs16("div", { className: "cp-stored-length", children: [
-                    /* @__PURE__ */ jsxs16("strong", { children: [
+              /* @__PURE__ */ jsxs17("aside", { className: "cp-note-editor", "aria-label": "Selected note", children: [
+                /* @__PURE__ */ jsx17("h3", { children: note ? `${composePitchName(note.pitch)} \xB7 selected note` : "Select a note in the grid or arrangement" }),
+                note ? /* @__PURE__ */ jsxs17(Fragment8, { children: [
+                  /* @__PURE__ */ jsx17(NumericControl, { scopeIdentity: `${scopeKey}:${c.id}:${layer2.id}:${note.id}`, id: "cp-note-pitch", label: "Pitch (MIDI)", value: note.pitch, min: 28, max: 84, step: 1, help: "Absolute pitch before effects.", onChange: (v) => editNote((n) => ({ ...n, pitch: v })) }, `${layer2.id}-${note.id}-pitch`),
+                  noteOut ? /* @__PURE__ */ jsxs17("div", { className: "cp-stored-length", children: [
+                    /* @__PURE__ */ jsxs17("strong", { children: [
                       "Stored length: ",
                       beatsLabel(note.duration)
                     ] }),
-                    /* @__PURE__ */ jsxs16("p", { children: [
+                    /* @__PURE__ */ jsxs17("p", { children: [
                       "Crossing / outside loop; not trimmed. ",
                       noteLimit === null ? "Fit moves its onset to the final eighth-note step." : "Fit shortens to the visible loop end."
                     ] }),
-                    /* @__PURE__ */ jsx16("button", { type: "button", onClick: () => editNote((n) => {
+                    /* @__PURE__ */ jsx17("button", { type: "button", onClick: () => editNote((n) => {
                       const beat = n.beat > loopBeats - 0.25 ? loopBeats - 0.5 : n.beat;
                       return { ...n, beat, duration: visibleDuration(beat, loopBeats, n.duration) };
                     }), children: "Fit selected note to loop" })
-                  ] }) : /* @__PURE__ */ jsx16(NumericControl, { scopeIdentity: `${scopeKey}:${c.id}:${layer2.id}:${note.id}`, id: "cp-note-duration", label: "Length", value: note.duration, min: 0.25, max: noteLimit, step: 0.25, unit: note.duration === 1 ? " beat" : " beats", help: "Quarter-beat lengths, bounded to four beats and the visible loop.", onChange: (v) => editNote((n) => ({ ...n, duration: visibleDuration(n.beat, loopBeats, v) })) }, `${layer2.id}-${note.id}-duration`),
-                  /* @__PURE__ */ jsx16(NumericControl, { scopeIdentity: `${scopeKey}:${c.id}:${layer2.id}:${note.id}`, id: "cp-note-velocity", label: "Velocity", value: note.velocity, min: 0.1, max: 1, step: 0.05, help: "Note intensity, independent of layer balance.", onChange: (v) => editNote((n) => ({ ...n, velocity: v })) }, `${layer2.id}-${note.id}-velocity`),
-                  /* @__PURE__ */ jsxs16("p", { className: "cp-note-summary", children: [
+                  ] }) : /* @__PURE__ */ jsx17(NumericControl, { scopeIdentity: `${scopeKey}:${c.id}:${layer2.id}:${note.id}`, id: "cp-note-duration", label: "Length", value: note.duration, min: 0.25, max: noteLimit, step: 0.25, unit: note.duration === 1 ? " beat" : " beats", help: "Quarter-beat lengths, bounded to four beats and the visible loop.", onChange: (v) => editNote((n) => ({ ...n, duration: visibleDuration(n.beat, loopBeats, v) })) }, `${layer2.id}-${note.id}-duration`),
+                  /* @__PURE__ */ jsx17(NumericControl, { scopeIdentity: `${scopeKey}:${c.id}:${layer2.id}:${note.id}`, id: "cp-note-velocity", label: "Velocity", value: note.velocity, min: 0.1, max: 1, step: 0.05, help: "Note intensity, independent of layer balance.", onChange: (v) => editNote((n) => ({ ...n, velocity: v })) }, `${layer2.id}-${note.id}-velocity`),
+                  /* @__PURE__ */ jsxs17("p", { className: "cp-note-summary", children: [
                     "Note body incl. release ",
                     selectedTiming.patch.duration.toFixed(2),
                     " s",
                     showTails ? ` \xB7 representative buffer allowance ${tailSeconds[layer2.id] === void 0 ? "pending" : `${tailSeconds[layer2.id].toFixed(2)} s`}` : "",
                     selectedTiming.clamped ? " \xB7 musical body clamped to renderer limit" : ""
                   ] }),
-                  /* @__PURE__ */ jsx16("button", { type: "button", onClick: () => removeNote(note.id), children: "Delete selected note" })
+                  /* @__PURE__ */ jsx17("button", { type: "button", onClick: () => removeNote(note.id), children: "Delete selected note" })
                 ] }) : null
               ] })
             ] }),
-            retained.length > 0 && /* @__PURE__ */ jsxs16("small", { className: "ss-notice", children: [
+            retained.length > 0 && /* @__PURE__ */ jsxs17("small", { className: "ss-notice", children: [
               retained.length,
               " notes crossing / outside the full timeline retained. Select in Arrangement to inspect."
             ] })
           ] })
         ] }),
-        drawer && /* @__PURE__ */ jsx16("div", { className: "cp-editor-anchor", children: /* @__PURE__ */ jsx16(ParameterScope, { identity: `${scopeKey}:${c.id}:${layer2.id}`, children: /* @__PURE__ */ jsx16(ComposeSoundEditor, { layer: layer2, edit, begin: () => store.beginGesture(), end: () => store.endGesture(), onUndo: undo, onClose: closeEditor }, layer2.id) }, `${scopeKey}:${c.id}:${layer2.id}`) })
+        drawer && /* @__PURE__ */ jsx17("div", { className: "cp-editor-anchor", children: /* @__PURE__ */ jsx17(ParameterScope, { identity: `${scopeKey}:${c.id}:${layer2.id}`, children: /* @__PURE__ */ jsx17(ComposeSoundEditor, { layer: layer2, edit, begin: () => store.beginGesture(), end: () => store.endGesture(), onUndo: undo, onClose: closeEditor }, layer2.id) }, `${scopeKey}:${c.id}:${layer2.id}`) })
       ] }),
-      /* @__PURE__ */ jsxs16("footer", { className: "cp-statusbar", children: [
-        /* @__PURE__ */ jsx16("span", { role: "status", children: notice || statusHint }),
-        /* @__PURE__ */ jsxs16("span", { title: `Playback revision ${snapshot.appliedRevision} \u2192 ${snapshot.requestedRevision}`, children: [
+      /* @__PURE__ */ jsxs17("footer", { className: "cp-statusbar", children: [
+        /* @__PURE__ */ jsx17("span", { role: "status", children: notice || statusHint }),
+        /* @__PURE__ */ jsxs17("span", { title: `Playback revision ${snapshot.appliedRevision} \u2192 ${snapshot.requestedRevision}`, children: [
           snapshot.playing ? "PLAYING" : snapshot.pending ? "PREPARING" : readiness.split(" \xB7 ")[0],
           " \xB7 ",
-          snapshot.positionBeat.toFixed(1),
-          " beats",
+          /* @__PURE__ */ jsx17(ComposePosition, { audio }),
           snapshot.updating ? snapshot.applyAtBeat === null ? " \xB7 Preparing update" : " \xB7 Updating next bar" : ""
         ] })
       ] })
@@ -11760,47 +11814,47 @@ function createStudioAudioSession(store) {
 }
 
 // desktop-src/plugin.tsx
-import { jsx as jsx17, jsxs as jsxs17 } from "react/jsx-runtime";
+import { jsx as jsx18, jsxs as jsxs18 } from "react/jsx-runtime";
 var scopeAtoms = () => [host.state.focusedSessionOwner, host.state.focusedSessionId, host.state.gateway, host.state.profile, host.state.connectionId, host.state.cwd].filter((atom) => !!atom);
 function scope() {
   const profile = host.state.profile.get() || "default", connection = host.state.connectionId.get() ?? "local", session = host.state.focusedSessionId.get(), owner = host.state.focusedSessionOwner.get(), gateway = host.state.gateway.get(), cwd = host.state.cwd?.get?.() ?? "";
   return { profile, connection, key: JSON.stringify([profile, connection, session, owner, gateway, cwd]) };
 }
 function useScopeKey() {
-  return useSyncExternalStore3((fn) => {
+  return useSyncExternalStore4((fn) => {
     const offs = scopeAtoms().map((atom) => atom.listen(fn));
     return () => offs.forEach((off) => off());
   }, () => scope().key, () => scope().key);
 }
 function StatusChip({ previewBridge, desktopTarget }) {
-  const preview = useSyncExternalStore3(previewBridge.subscribe, previewBridge.getSnapshot, previewBridge.getSnapshot), desktop = useSyncExternalStore3(desktopTarget.subscribe, desktopTarget.getSnapshot, desktopTarget.getSnapshot), scopeKey = useScopeKey();
+  const preview = useSyncExternalStore4(previewBridge.subscribe, previewBridge.getSnapshot, previewBridge.getSnapshot), desktop = useSyncExternalStore4(desktopTarget.subscribe, desktopTarget.getSnapshot, desktopTarget.getSnapshot), scopeKey = useScopeKey();
   if (desktop.enabled || desktop.pending) {
     const audio2 = desktop.audio, active2 = !audio2.muted && audio2.activeVoices > 0, status2 = desktop.error ? "Error" : desktop.pending ? "Enabling" : audio2.muted ? "Muted" : audio2.contextState === "running" ? "On" : "Paused";
-    return /* @__PURE__ */ jsxs17("span", { "data-sonic-chip": "", "data-desktop-sound-controls": "", "data-active": active2, title: "Hermes Desktop \xB7 Sound Design event assignments", children: [
-      /* @__PURE__ */ jsx17("span", { className: "sonic-chip-led", "data-active": active2, "aria-hidden": "true" }),
-      /* @__PURE__ */ jsxs17("span", { children: [
+    return /* @__PURE__ */ jsxs18("span", { "data-sonic-chip": "", "data-desktop-sound-controls": "", "data-active": active2, title: "Hermes Desktop \xB7 Sound Design event assignments", children: [
+      /* @__PURE__ */ jsx18("span", { className: "sonic-chip-led", "data-active": active2, "aria-hidden": "true" }),
+      /* @__PURE__ */ jsxs18("span", { children: [
         "Desktop sounds: ",
         status2
       ] }),
-      /* @__PURE__ */ jsx17("button", { type: "button", "aria-label": audio2.muted ? "Unmute desktop sounds" : "Mute desktop sounds", disabled: audio2.contextState !== "running" || desktop.pending, "aria-pressed": audio2.muted, onClick: () => desktopTarget.setMuted(!audio2.muted), children: audio2.muted ? "\u2298" : "\u266A" }),
-      /* @__PURE__ */ jsx17("button", { type: "button", "aria-label": "Disable desktop sounds", onClick: () => desktopTarget.disable(), children: "\xD7" })
+      /* @__PURE__ */ jsx18("button", { type: "button", "aria-label": audio2.muted ? "Unmute desktop sounds" : "Mute desktop sounds", disabled: audio2.contextState !== "running" || desktop.pending, "aria-pressed": audio2.muted, onClick: () => desktopTarget.setMuted(!audio2.muted), children: audio2.muted ? "\u2298" : "\u266A" }),
+      /* @__PURE__ */ jsx18("button", { type: "button", "aria-label": "Disable desktop sounds", onClick: () => desktopTarget.disable(), children: "\xD7" })
     ] });
   }
   const audio = preview.scopeKey === scopeKey ? preview.audio : null, active = !!audio?.enabled && !audio.muted && audio.activeVoices > 0, status = active ? "playing" : studioAudioStatus(audio), disabled = !audio || audio.contextState !== "running" || !!audio.error;
-  return /* @__PURE__ */ jsxs17("span", { "data-sonic-chip": "", "data-active": active, title: `Local Sound Studio preview \xB7 ${status}`, children: [
-    /* @__PURE__ */ jsx17("span", { className: "sonic-chip-led", "data-active": active, "aria-hidden": "true" }),
-    /* @__PURE__ */ jsxs17("span", { children: [
+  return /* @__PURE__ */ jsxs18("span", { "data-sonic-chip": "", "data-active": active, title: `Local Sound Studio preview \xB7 ${status}`, children: [
+    /* @__PURE__ */ jsx18("span", { className: "sonic-chip-led", "data-active": active, "aria-hidden": "true" }),
+    /* @__PURE__ */ jsxs18("span", { children: [
       "Studio preview: ",
       status
     ] }),
-    /* @__PURE__ */ jsx17("button", { type: "button", disabled, "aria-label": audio?.muted ? "Unmute Studio preview" : "Mute Studio preview", "aria-pressed": audio?.muted ?? true, onClick: () => {
+    /* @__PURE__ */ jsx18("button", { type: "button", disabled, "aria-label": audio?.muted ? "Unmute Studio preview" : "Mute Studio preview", "aria-pressed": audio?.muted ?? true, onClick: () => {
       if (audio && scope().key === scopeKey) previewBridge.setMuted(scopeKey, preview, !audio.muted);
     }, children: audio?.muted ? "\u2298" : "\u266A" })
   ] });
 }
 function SoundStudioRoute({ store, composeStore, previewBridge, desktopTarget, backgroundDrafts, writeClipboard, audioSession }) {
   const scopeKey = useScopeKey();
-  return /* @__PURE__ */ jsx17(SoundWorkspace, { scopeKey, store, composeStore, previewBridge, desktopTarget, backgroundDrafts, writeClipboard, audioSession }, scopeKey);
+  return /* @__PURE__ */ jsx18(SoundWorkspace, { scopeKey, store, composeStore, previewBridge, desktopTarget, backgroundDrafts, writeClipboard, audioSession }, scopeKey);
 }
 var plugin_default = {
   id: "hermes-sonic-ui",
@@ -11834,9 +11888,9 @@ var plugin_default = {
       }
     };
     const offAtoms = scopeAtoms().map((atom) => atom.listen(syncScope)), offEvents = ctx.onEvent("*", (event) => desktopTarget.handleEvent(event));
-    ctx.register({ id: "sound-studio", area: ROUTES_AREA, data: { path: "/sonic-ui" }, render: () => /* @__PURE__ */ jsx17(SoundStudioRoute, { store, composeStore, previewBridge, desktopTarget, backgroundDrafts, writeClipboard: (text3) => ctx.os.writeClipboard(text3), audioSession }) });
+    ctx.register({ id: "sound-studio", area: ROUTES_AREA, data: { path: "/sonic-ui" }, render: () => /* @__PURE__ */ jsx18(SoundStudioRoute, { store, composeStore, previewBridge, desktopTarget, backgroundDrafts, writeClipboard: (text3) => ctx.os.writeClipboard(text3), audioSession }) });
     ctx.register({ id: "navigation", area: SIDEBAR_NAV_AREA, data: { path: "/sonic-ui", label: "Sound Studio", codicon: "pulse" } });
-    ctx.register({ id: "audio-controls", area: STATUSBAR_AREAS.right, order: 125, render: () => /* @__PURE__ */ jsx17(StatusChip, { previewBridge, desktopTarget }) });
+    ctx.register({ id: "audio-controls", area: STATUSBAR_AREAS.right, order: 125, render: () => /* @__PURE__ */ jsx18(StatusChip, { previewBridge, desktopTarget }) });
     ctx.onDispose(() => {
       removeStyles();
       previewBridge.clear();

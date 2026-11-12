@@ -158,6 +158,18 @@ try:
     return {loopSeconds:result.loopSeconds,notes:result.noteCount,before,late};
    }''')
    check('Real Web Audio WAV contains the last-bar note at the correct time',abs(long_audio['loopSeconds']-38.4)<1e-6 and long_audio['notes']==1 and long_audio['before']==0 and long_audio['late']>0, long_audio)
+   # Dense supported boundary: real editor, cached PCM and isolated clock subscribers.
+   page.evaluate("""()=>{const key='hermes.plugin.hermes-sonic-ui.local:default:compose-workspace-v1',doc=JSON.parse(localStorage.getItem(key)),c=doc.composition;c.bars=32;c.meter=4;c.loopStart=124;c.loopEnd=128;c.layers=c.layers.slice(0,1);c.selectedLayer=c.layers[0].id;c.layers[0].gainDb=-20;c.layers[0].muted=false;c.layers[0].notes=Array.from({length:2048},(_,i)=>({id:'dense-'+i,beat:Math.floor(i/8)*.5,duration:.5,pitch:45,velocity:.3}));localStorage.setItem(key,JSON.stringify(doc));}""")
+   page.set_viewport_size({'width':1440,'height':900});page.reload();page.get_by_role('button',name='Compose',exact=True).click()
+   check('Dense 32-bar editor renders 2,048 velocity controls and overlapping cells',page.locator('.cp-velocity-lane input').count()==2048 and page.locator('[data-grid-pitch="45"] .cp-overlap-count').count()==256)
+   page.get_by_role('button',name='Enable audio',exact=True).click();page.get_by_role('button',name='Play loop',exact=True).click()
+   page.wait_for_function('document.querySelector(".cp-play").getAttribute("aria-pressed")==="true"')
+   old=page.locator('.cp-grid-playhead').get_attribute('style')
+   page.wait_for_function('(old)=>document.querySelector(".cp-grid-playhead").getAttribute("style")!==old',arg=old)
+   page.locator('.cp-velocity-lane input').last.focus();page.keyboard.press('ArrowRight')
+   check('Dense arrangement accepts an edit during playback',composition(page)['layers'][0]['notes'][-1]['velocity']>.3)
+   page.get_by_role('button',name='Stop',exact=True).click()
+   check('Dense playback stops without an editor error',page.get_by_role('button',name='Play loop',exact=True).get_attribute('aria-pressed')=='false' and not page.get_by_role('alert').count())
    check('No browser runtime errors',not REPORT['pageErrors'],REPORT['pageErrors'])
   finally:
    page.screenshot(path=str(OUT/'final-state.png'));browser.close()

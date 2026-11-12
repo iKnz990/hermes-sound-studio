@@ -8,6 +8,7 @@ from pathlib import Path
 import argparse
 import hashlib
 import json
+import math
 import os
 import platform
 import re
@@ -16,7 +17,67 @@ import uuid
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
-STORE_KEY = 'hermes.plugin.hermes-sonic-ui.local:default:sound-studio-v1'
+sys.path.insert(0, str(ROOT))
+from studio_backend import EVENTS, validate_patch
+
+
+def active_theme(text):
+    """A live UI export must contain every valid assignment; null is never proof."""
+    value = json.loads(text)
+    if (not isinstance(value, dict) or set(value) != {'schemaVersion', 'engineVersion', 'name', 'sampleRate', 'masterGain', 'events'}
+            or value.get('schemaVersion') != 'SoundTheme/v1'
+            or value.get('engineVersion') != 'sound-studio-dsp/v1'
+            or not isinstance(value.get('events'), dict) or set(value['events']) != set(EVENTS)
+            or value.get('sampleRate') not in [44100, 48000, 96000]):
+        raise ValueError('A complete live SoundTheme export is required.')
+    name = value['name']
+    if not isinstance(name, str) or not name.strip() or len(name) > 80 or re.search(r'[\x00-\x1f\x7f]', name):
+        raise ValueError('Invalid live theme name.')
+    gain = value.get('masterGain')
+    if isinstance(gain, bool) or not isinstance(gain, (int, float)) or not math.isfinite(gain) or not 0 <= gain <= 1.5:
+        raise ValueError('Invalid live theme master gain.')
+    for patch in value['events'].values():
+        validate_patch(patch)
+    return value
+
+
+# Capture the actual UI-generated JSON and its executing module, without a file
+# picker or clipboard write. No theme/store values or SDK replies are supplied.
+EXPORT_PROBE = """sources => {
+ const create=URL.createObjectURL, click=HTMLAnchorElement.prototype.click, blobs=new Map();
+ const probe={result:null,restore(){URL.createObjectURL=create;HTMLAnchorElement.prototype.click=click;delete window.__studioNativeExport;}};
+ URL.createObjectURL=function(blob){const url=create.call(URL,blob);blobs.set(url,{blob,stack:new Error().stack??''});return url;};
+ HTMLAnchorElement.prototype.click=function(){
+  const captured=blobs.get(this.href);
+  if(this.download==='sound-theme.json'&&captured){
+   const sourceUrl=captured.stack.split('\\n').flatMap(line=>sources.filter(url=>line.includes(url+':')))[0]??null;
+   probe.result=captured.blob.text().then(text=>({text,sourceUrl}));return;
+  }
+  return click.call(this);
+ };
+ window.__studioNativeExport=probe;
+}"""
+
+
+def snapshot_theme(page, sources):
+    page.evaluate(EXPORT_PROBE, list(sources))
+    menu = page.locator('.ss-document-menu')
+    try:
+        if menu.get_attribute('open') is None:
+            menu.locator(':scope > summary').click()
+        export_menu = menu.locator('details.ss-menu')
+        if export_menu.get_attribute('open') is None:
+            export_menu.locator(':scope > summary').click()
+        page.get_by_label('Export mode', exact=True).select_option('precision')
+        page.get_by_role('button', name='Download Studio JSON', exact=True).click()
+        captured = page.evaluate('window.__studioNativeExport.result')
+        if not captured or sources.get(captured.get('sourceUrl')) is not True:
+            raise AssertionError('The executing export handler must belong to the candidate bundle.')
+        return active_theme(captured['text']), captured['sourceUrl']
+    finally:
+        page.evaluate('window.__studioNativeExport?.restore()')
+        if menu.get_attribute('open') is not None:
+            menu.locator(':scope > summary').click()
 
 
 def canonical_source(source):
@@ -39,12 +100,13 @@ def local_endpoint(value):
 
 # The observer forwards every call to the actual SDK unchanged. It records only
 # this request's method names and cleanup acknowledgments, never model content.
-OBSERVE = """marker => {
+OBSERVE = """({marker,sourceUrl}) => {
  const h=window.__HERMES_PLUGIN_SDK__.host, original=h.requestProfile;
- const receipt={methods:[],created:false,submitted:false,terminal:false,cleaned:false};
+ const receipt={methods:[],activeSource:false,created:false,submitted:false,terminal:false,cleaned:false};
  let session='';
  const wrapped=async function(route,method,params,...rest){
   const creating=method==='session.create'&&String(params?.title).includes(marker);
+  if(creating){receipt.activeSource=(new Error().stack??'').includes(sourceUrl+':');if(!receipt.activeSource)throw Error('Draft handler is not owned by the verified candidate');}
   const own=creating||!!session&&params?.session_id===session;
   const result=await original.call(h,route,method,params,...rest);
   if(own){
@@ -101,26 +163,26 @@ def main():
                 scripts = []
                 session.on('Debugger.scriptParsed', lambda event: scripts.append(event))
                 session.send('Debugger.enable')
-                matched = False
+                sources = {}
                 for script in scripts:
                     if not script.get('url', '').startswith('blob:') or script.get('length', 0) < len(source) // 2:
                         continue
                     loaded = session.send('Debugger.getScriptSource', {'scriptId': script['scriptId']})['scriptSource']
-                    if canonical_source(loaded) == canonical_source(source):
-                        matched = True
-                        break
+                    if re.search(r'''\bid:\s*["']hermes-sonic-ui["']''', loaded):
+                        sources[script['url']] = canonical_source(loaded) == canonical_source(source)
                 session.detach()
-                check('Running plugin matches the candidate bundle', matched)
+                check('Candidate bundle is available for active-handler verification', any(sources.values()))
                 page.evaluate("window.__HERMES_PLUGIN_SDK__.host.navigate('/sonic-ui')")
                 page.get_by_role('button', name='Compose', exact=True).click()
                 check('Native Compose exposes 32 bars', page.get_by_role('spinbutton', name='Loop length', exact=True).get_attribute('aria-valuemax') == '32')
                 page.get_by_role('button', name='Sound Design', exact=True).click()
+                before, active_source = snapshot_theme(page, sources)
+                check('Live six-assignment export is executed by the candidate bundle', True)
                 page.get_by_role('button', name='Sound Draft', exact=True).click()
                 check('No pre-existing draft is overwritten', page.get_by_role('button', name='Accept draft', exact=True).count() == 0
                       and page.get_by_role('button', name='Cancel draft', exact=True).count() == 0)
-                before = page.evaluate('(key)=>localStorage.getItem(key)', STORE_KEY)
                 marker = 'native-' + uuid.uuid4().hex[:12]
-                page.evaluate(OBSERVE, marker)
+                page.evaluate(OBSERVE, {'marker': marker, 'sourceUrl': active_source})
                 observed = True
                 page.get_by_role('textbox', name='Describe the sound', exact=True).fill(marker + ' soft short glass confirmation, one sine voice, no noise. Return only the requested SoundPatch JSON.')
                 page.get_by_role('button', name='Generate sound', exact=True).click()
@@ -128,10 +190,14 @@ def main():
                 page.wait_for_function('window.__studioNativeProbe.receipt.cleaned', timeout=30000)
                 receipt = page.evaluate('window.__studioNativeProbe.receipt')
                 report['rpc'] = receipt
-                check('Real SDK creates, submits, receives and releases its own session', all(receipt[k] for k in ['created', 'submitted', 'terminal', 'cleaned']))
+                check('Verified candidate creates, submits, receives and releases its own session through the real SDK', all(receipt[k] for k in ['activeSource', 'created', 'submitted', 'terminal', 'cleaned']))
                 check('Only one model request was submitted', receipt['methods'].count('prompt.submit') == 1)
                 check('Validated candidate offers explicit acceptance', page.get_by_role('button', name='Accept draft', exact=True).is_enabled())
-                check('Draft leaves current assignments unchanged', page.evaluate('(key)=>localStorage.getItem(key)', STORE_KEY) == before)
+                page.keyboard.press('Escape')
+                page.get_by_role('dialog').wait_for(state='hidden')
+                after, after_source = snapshot_theme(page, sources)
+                check('Draft leaves all six live assignments unchanged in the same candidate instance', after == before and after_source == active_source)
+                page.get_by_role('button', name='Sound Draft', exact=True).click()
                 page.get_by_role('button', name='Discard', exact=True).click()
                 report['ok'] = True
             finally:

@@ -25,8 +25,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 2469,
-      "sha256": "6b44ab956339fe98b5ed383474e0ff038eaf0523adc3e81fbc8634daff33bcf1"
+      "bytes": 2723,
+      "sha256": "e0a6c5276ea19ecedcfbf49f3076890c34872a42cd54a12721f457dab4b91be7"
     },
     {
       "path": "INSTALL.md",
@@ -129,6 +129,11 @@
       "sha256": "1f795f601bcb6179d90a1e3bd1f5c31076cf91f7568b84c7367a237187a1fd18"
     },
     {
+      "path": "desktop-src/compose-playhead.tsx",
+      "bytes": 984,
+      "sha256": "74d452c4e51e04d63cccaf9a98f1771c6c84ee8ff9f84a3e284ba8f2834cb933"
+    },
+    {
       "path": "desktop-src/compose-sound-editor-style.ts",
       "bytes": 2751,
       "sha256": "c9ac8b9596c8c8782cc7665407d3092c243d7de4ffe8c0e6fd35d53d0b4ed1a9"
@@ -150,13 +155,13 @@
     },
     {
       "path": "desktop-src/compose-view-model.ts",
-      "bytes": 3147,
-      "sha256": "af8dc657ff99f38e9770f3ddd17a5db54e02f01bf6efd02a39e926ca4fa531a3"
+      "bytes": 4810,
+      "sha256": "48b4d54a95947daf346e515cf3f69ea53dfe0878d9fd14f70923a22f41ead8e5"
     },
     {
       "path": "desktop-src/compose-workspace.tsx",
-      "bytes": 41434,
-      "sha256": "b90f8740ddfe7dfc428b2c4b06b387a90abf408c82be30190406fdbbce4e7573"
+      "bytes": 41501,
+      "sha256": "0fd7297ba94b3d19d73e901aeae3fa3e8840b2b0f5a6c9053633aaba013b1340"
     },
     {
       "path": "desktop-src/export.ts",
@@ -385,8 +390,8 @@
     },
     {
       "path": "desktop/plugin.js",
-      "bytes": 680361,
-      "sha256": "005103632e1af7b01253ac8f7b4bcff7077d47543b69cdce41bef2cd50cabfbe"
+      "bytes": 682580,
+      "sha256": "426aef07a003876ee87a8499d8ba8013ac7686066cee9ee9045db4930d0617c6"
     },
     {
       "path": "dist/injector.cjs",
@@ -430,8 +435,8 @@
     },
     {
       "path": "docs/verification.md",
-      "bytes": 8099,
-      "sha256": "39bdd5d6d3671bf834584a00519801db2d8f28109b3c20c88056dd068f3889fa"
+      "bytes": 9079,
+      "sha256": "549c693eb17defb3035322429532992dba192fcc30d015c6ed41d1f783c146fe"
     },
     {
       "path": "examples/glass-chords.sound.json",
@@ -525,8 +530,13 @@
     },
     {
       "path": "scripts/native-desktop-proof.py",
-      "bytes": 9049,
-      "sha256": "dfd269f02f24d5f533edfab314c82f01e3e23fd33393fa89caf726c990c4728d"
+      "bytes": 12966,
+      "sha256": "854a17dbcdb05118c4ea8386afa88bca12353b3af2de31dc287361f1d06ef9da"
+    },
+    {
+      "path": "scripts/native-verifier-browser-proof.py",
+      "bytes": 5011,
+      "sha256": "f647e462eaf6bbebf83c6c4019609b9a9f16138eb88177294e4de100467a819b"
     },
     {
       "path": "scripts/package.mjs",
@@ -555,8 +565,8 @@
     },
     {
       "path": "scripts/test-browser.mjs",
-      "bytes": 890,
-      "sha256": "10125567e35a178235f36ab86652266130bf4057817ef12331feaa9def47f8a9"
+      "bytes": 970,
+      "sha256": "85a357df4ccca357afe41cf191b50edf20975d20d0ed7816b422c88e03429465"
     },
     {
       "path": "scripts/test-files.json",
@@ -575,8 +585,8 @@
     },
     {
       "path": "scripts/workspace-upgrade-proof.py",
-      "bytes": 16908,
-      "sha256": "9b715614e43bba6490139eb0716a77c5a0341ecc702912cb907c7938ad8535af"
+      "bytes": 18727,
+      "sha256": "a050007a0d4e4a8a81b67fe2e0809934e1e918b95ec2b386223cc80f9b8dcb92"
     },
     {
       "path": "skills/sonic-ui/SKILL.md",
@@ -630,8 +640,8 @@
     },
     {
       "path": "tests/compose-grid-interactions.test.mjs",
-      "bytes": 4118,
-      "sha256": "daf3b3018038c4082fe2e3d03a2312a331a9c7584ed823e8e48f364fea5fb73b"
+      "bytes": 6132,
+      "sha256": "d5dbd37ad57d6d60f8d990e0c11e571dd2e11bbc304c1fde540a6f24548fc2ff"
     },
     {
       "path": "tests/compose-live-audio.test.mjs",
@@ -735,8 +745,8 @@
     },
     {
       "path": "tests/test_native_verification.py",
-      "bytes": 1854,
-      "sha256": "6f475bf8e7f4beaca70bc177ee30148639589e4ce47bc401c548f20d33c7c5ca"
+      "bytes": 3083,
+      "sha256": "778f3308bc147c2d9bfdfe0b230b0c44157ee86c8cba72102491be01fabd155a"
     },
     {
       "path": "tests/test_registration.py",

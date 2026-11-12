@@ -7,6 +7,30 @@ const root=path.resolve(import.meta.dirname,'..');
 let api={};
 try {const out=await build({absWorkingDir:root,entryPoints:['desktop-src/compose-view-model.ts'],bundle:true,write:false,platform:'node',format:'cjs'});const m=new Module(path.join(root,'tests/grid-model.cjs'));m._compile(out.outputFiles[0].text,m.id);api=m.exports;}catch(e){if(!String(e).includes('Could not resolve'))throw e;}
 const notes=[{id:'early',beat:0,duration:2,pitch:45,velocity:.8},{id:'late',beat:.5,duration:1,pitch:45,velocity:.8},{id:'short',beat:2,duration:.25,pitch:45,velocity:.8}];
+test('indexed hits preserve fractional onsets, selected overlap ordering and retained pitches',()=>{
+ const input=[...notes,{id:'fraction',beat:.25,duration:.75,pitch:45,velocity:.8},{id:'hidden',beat:127,duration:1,pitch:60,velocity:.8}];
+ for(const selected of [null,'early','fraction']){
+  const index=api.indexComposeNotes(input,4,selected);
+  for(let step=0;step<8;step++)for(const pitch of [45,60])assert.deepEqual(index.cells.get(pitch)?.get(step)??[],api.notesInCell(input,step/2,pitch,selected));
+  assert.ok(index.pitches.has(60));assert.equal(index.velocity.length,4);
+ }
+});
+test('2,048-note index bounds note reads and computes velocity groups in document order',()=>{
+ let reads=0;
+ const input=Array.from({length:2048},(_,i)=>({id:`n${i}`,get beat(){reads++;return Math.floor(i/8)*.5;},duration:Math.min(4,128-Math.floor(i/8)*.5),pitch:45,velocity:.8}));
+ const index=api.indexComposeNotes(input,128,null);
+ assert.equal(index.velocity.length,2048);assert.ok(index.velocity.every(({offset},i)=>offset===i%8));
+ assert.ok([...index.cells.values()].flatMap(row=>[...row.values()]).reduce((sum,hits)=>sum+hits.length,0)<=2048*9);
+ assert.ok(reads<2048*100,`note reads: ${reads}`);
+});
+test('clock-only updates retain editor snapshot identity while every control field stays live',()=>{
+ let state={enabled:true,muted:false,playing:true,pending:false,positionBeat:0,error:'',contextState:'running',requestedRevision:1,appliedRevision:1,updating:false,applyAtBeat:null,updateError:''};
+ const read=api.composeEditorSnapshot(()=>state),initial=read();
+ for(let i=0;i<1000;i++){state={...state,positionBeat:i*.05};assert.strictEqual(read(),initial);}
+ for(const [key,value] of Object.entries({enabled:false,muted:true,playing:false,pending:true,error:'failed',contextState:'suspended',requestedRevision:2,appliedRevision:2,updating:true,applyAtBeat:8,updateError:'late'})){
+  const before=read();state={...state,[key]:value};assert.notStrictEqual(read(),before,key);assert.equal(read()[key],value);
+ }
+});
 test('grid editing reaches bar 32 and bounds notes at the storage horizon',()=>{
  assert.equal(api.visibleDuration(16,128,2),2);
  assert.equal(api.visibleDuration(127.5,128,4),.5);
