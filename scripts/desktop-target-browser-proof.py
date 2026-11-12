@@ -1,4 +1,4 @@
-"""Production bundle with native host CSS/Dialog; real WebAudio, physically muted Chrome."""
+"""Production bundle with SDK/Dialog fixtures; real WebAudio, physically muted Chromium."""
 from pathlib import Path
 from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
 from playwright.sync_api import sync_playwright
@@ -25,6 +25,7 @@ def expect_pcm(page,event,action):
  before=starts(page);action()
  try:page.wait_for_function('([before,event])=>desktopTrace.starts.slice(before).some(row=>desktopSame(row,desktopExpected[event]))',arg=[before,event])
  except Exception:
+  REPORT['pcmMismatch']=page.evaluate('''([before,event])=>desktopTrace.starts.slice(before).map(row=>{const expected=desktopExpected[event];let max=0,sum=0,n=0;if(row.channels.length!==expected.channels.length||row.channels.some((ch,c)=>ch.length!==expected.channels[c].length))return {sameShape:false};row.channels.forEach((ch,c)=>ch.forEach((v,i)=>{const d=Math.abs(v-expected.channels[c][i]);max=Math.max(max,d);sum+=d*d;n++;}));return {sameShape:true,maxAbs:max,rms:Math.sqrt(sum/n)};})''', [before,event])
   print('PCM DEBUG',event,page.evaluate('({expected:Object.fromEntries(Object.entries(desktopExpected).map(([e,r])=>[e,r.hash])),starts:desktopTrace.starts.map(r=>r.hash),contexts:desktopTrace.contexts.map(c=>c.state),target:document.querySelector(".ss-desktop-target").innerText})'))
   raise
  check('Actual assigned PCM: '+event,True)
@@ -36,7 +37,7 @@ try:
   browser=pw.chromium.launch(**browser_options())
   page=browser.new_page(viewport={'width':1440,'height':1000});page.set_default_timeout(10000)
   page.on('pageerror',lambda e:REPORT['pageErrors'].append(str(e)))
-  page.add_init_script('''window.desktopTrace={contexts:[],starts:[]};window.pcmHash=b=>{let hash=2166136261;for(let c=0;c<b.numberOfChannels;c++){const data=b.getChannelData(c),bits=new Uint32Array(data.buffer,data.byteOffset,data.length);for(let i=0;i<bits.length;i+=17){hash^=bits[i];hash=Math.imul(hash,16777619);}}return b.length+':'+(hash>>>0);};window.desktopSame=(a,b)=>a.channels.length===b.channels.length&&a.channels.every((ch,c)=>ch.length===b.channels[c].length&&ch.every((v,i)=>Math.abs(v-b.channels[c][i])<=1e-5));const C=AudioContext;window.AudioContext=class extends C{constructor(...a){super(...a);desktopTrace.contexts.push(this);}createBufferSource(){const s=super.createBufferSource(),start=s.start.bind(s);s.start=(...args)=>{desktopTrace.starts.push({hash:pcmHash(s.buffer),channels:Array.from({length:s.buffer.numberOfChannels},(_,c)=>s.buffer.getChannelData(c)),time:this.currentTime});return start(...args)};return s;}};''')
+  page.add_init_script('''window.desktopTrace={contexts:[],starts:[]};window.pcmHash=b=>{let hash=2166136261;for(let c=0;c<b.numberOfChannels;c++){const data=b.getChannelData(c),bits=new Uint32Array(data.buffer,data.byteOffset,data.length);for(let i=0;i<bits.length;i+=17){hash^=bits[i];hash=Math.imul(hash,16777619);}}return b.length+':'+(hash>>>0);};window.desktopSame=(a,b)=>{if(a.channels.length!==b.channels.length||a.channels.some((ch,c)=>ch.length!==b.channels[c].length))return false;let max=0,squared=0,count=0;for(let c=0;c<a.channels.length;c++)for(let i=0;i<a.channels[c].length;i++){const d=Math.abs(a.channels[c][i]-b.channels[c][i]);if(!Number.isFinite(d))return false;max=Math.max(max,d);squared+=d*d;count++;}return max<=1e-4&&Math.sqrt(squared/count)<=1e-5;};const C=AudioContext;window.AudioContext=class extends C{constructor(...a){super(...a);desktopTrace.contexts.push(this);}createBufferSource(){const s=super.createBufferSource(),start=s.start.bind(s);s.start=(...args)=>{desktopTrace.starts.push({hash:pcmHash(s.buffer),channels:Array.from({length:s.buffer.numberOfChannels},(_,c)=>s.buffer.getChannelData(c)),time:this.currentTime});return start(...args)};return s;}};''')
   try:
    check('Exact verified production bundle',hashlib.sha256(Path(BUILD['pluginFile']).read_bytes()).hexdigest()==BUILD['pluginSha256'])
    page.goto(f'http://127.0.0.1:{server.server_port}/proof/workspace-browser.html');page.locator('.ss-desktop-target').wait_for()
@@ -44,6 +45,9 @@ try:
    page.locator('#host-action').click();check('Host events are silent before enable',starts(page)==0 and page.evaluate('desktopTrace.contexts.length')==0)
    page.locator('.ss-event-select').first.click();page.add_script_tag(url=f'http://127.0.0.1:{server.server_port}/evidence/workspace-upgrade/oracle.js')
    references(page)
+   # Independent canonical renders can drift by ~3e-5 peak in Chromium.
+   # Bound peak AND RMS error; all six assignment references must still differ.
+   check('PCM tolerance distinguishes all six event assignments',page.evaluate('()=>{const entries=Object.values(desktopExpected);return entries.every((a,i)=>entries.every((b,j)=>i===j||!desktopSame(a,b)));}'))
    page.get_by_role('button',name='Enable desktop sounds',exact=True).click()
    page.get_by_text('Assignments active',exact=True).wait_for()
    check('Explicit enable changes target, without auditioning',page.locator('.ss-desktop-target strong').inner_text()=='Hermes Desktop' and starts(page)==0)

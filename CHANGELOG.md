@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Expand Compose to 32 bars and 2,048 notes, preserving notes when the visible arrangement is shortened. Cover late editing, persistence, playback and WAV export.
+- Run portable build/regression/browser CI on Windows, macOS and Linux, with per-platform evidence.
+- Add an opt-in native Hermes Desktop/configured-model gate and manually dispatched three-platform runner workflow. Native receipts require provisioned test hosts; fixtures remain a separate test lane.
+- Normalize checkout line endings and make the existing renderer test tolerate CRLF source files.
+
 ## 0.5.01 — 2026-11-10
 
 - Require Hermes human approval before native TypeScript output writes or JSX/TSX injection applies; scope persistent approvals to the destination.

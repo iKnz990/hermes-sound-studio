@@ -7,6 +7,13 @@ const root=path.resolve(import.meta.dirname,'..');
 let api={};
 try {const out=await build({absWorkingDir:root,entryPoints:['desktop-src/compose-view-model.ts'],bundle:true,write:false,platform:'node',format:'cjs'});const m=new Module(path.join(root,'tests/grid-model.cjs'));m._compile(out.outputFiles[0].text,m.id);api=m.exports;}catch(e){if(!String(e).includes('Could not resolve'))throw e;}
 const notes=[{id:'early',beat:0,duration:2,pitch:45,velocity:.8},{id:'late',beat:.5,duration:1,pitch:45,velocity:.8},{id:'short',beat:2,duration:.25,pitch:45,velocity:.8}];
+test('grid editing reaches bar 32 and bounds notes at the storage horizon',()=>{
+ assert.equal(api.visibleDuration(16,128,2),2);
+ assert.equal(api.visibleDuration(127.5,128,4),.5);
+ assert.equal(api.visibleDuration(127.75,128,4),.25);
+ assert.equal(api.visibleDuration(128,128,1),null);
+ assert.equal(api.visibleDuration(96,96,1),null);
+});
 test('half-open sustain hits prioritize selected overlap then latest onset and stable identity',()=>{
  assert.equal(typeof api.notesAtBeat,'function');
  assert.deepEqual(api.notesAtBeat(notes,1,45,null).map(n=>n.id),['late','early']);

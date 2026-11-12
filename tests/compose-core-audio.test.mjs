@@ -10,6 +10,17 @@ await mkdir(out,{recursive:true});
 let api={};
 if(existsSync(path.join(root,'desktop-src/compose-audio.ts'))){const result=await build({stdin:{contents:`export * from './desktop-src/compose-audio';export * from './desktop-src/compose-model';`,resolveDir:root},bundle:true,write:false,platform:'node',format:'cjs'});const file=path.join(out,'core-audio-test.cjs');await writeFile(file,result.outputFiles[0].contents);api=createRequire(import.meta.url)(file);}
 const feature=()=>assert.equal(typeof api.ComposeAudio,'function','Compose shared-clock transport must exist');
+test('32-bar playback schedules late notes and wraps a late active loop in both meters',async()=>{
+ for(const meter of [3,4]){
+  const c=api.createComposition();c.meter=meter;c.bars=32;c.loopStart=31*meter;c.loopEnd=32*meter;
+  c.layers=c.layers.slice(0,1);c.layers[0].notes=[{...c.layers[0].notes[0],beat:c.loopStart}];
+  const r=rig();r.transport.setComposition(c);await r.transport.enable();assert.equal(await r.transport.play(),true);
+  assert.equal(r.started.length,1);assert.equal(r.started[0].t,10.06);
+  r.advance(meter*.5-.05);assert.equal(r.started.length,2);
+  assert.ok(Math.abs(r.started[1].t-(10.06+meter*.5))<1e-9);
+  await r.transport.dispose();
+ }
+});
 function rig(render=async p=>({duration:p.duration+.2,length:Math.ceil((p.duration+.2)*48000),numberOfChannels:2})){let clock=10,timers=[],started=[],stopped=[],created=0;const nodes=[];
  const ctx={state:'suspended',get currentTime(){return clock},destination:{},resume:async()=>{ctx.state='running'},close:async()=>{ctx.state='closed'},createGain:()=>({gain:{value:0,setValueAtTime(v){this.value=v}},connect(){},disconnect(){}}),createDynamicsCompressor:()=>({threshold:{value:0},knee:{value:0},ratio:{value:0},attack:{value:0},release:{value:0},connect(){},disconnect(){}}),createBufferSource:()=>{const s={buffer:null,onended:null,connect(){},disconnect(){},start(t){started.push({t,buffer:s.buffer})},stop(){stopped.push(s)}};nodes.push(s);return s}};
  const transport=new api.ComposeAudio({createContext:()=>{created++;return ctx},render,setInterval:fn=>{timers.push(fn);return timers.length},clearInterval:()=>{timers=[]}});

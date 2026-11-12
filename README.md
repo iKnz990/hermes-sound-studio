@@ -67,7 +67,7 @@ Sound Draft stays inside Studio and uses the active profile’s configured model
 
 ## Build and verify
 
-Use Node.js 22+ and Python 3.11+. Windows with Chromium is the tested desktop environment.
+Use Node.js 22+ and Python 3.11+. CI runs the portable suite with Chromium on Windows, macOS and Linux. Real Hermes Desktop/model verification runs separately; see the verification notes for its prerequisites and evidence boundaries.
 
 ```sh
 npm ci --ignore-scripts --no-audit --no-fund
@@ -94,7 +94,7 @@ Generating a Sound Draft sends your request, selected patch and JSON schema to t
 
 ## Scope
 
-Compose supports four bars and eight layers. WAV contains one active loop plus effect tails. It is a compact loop instrument; song sections, stem export and free clip dragging are outside this release. Detailed use and compatibility notes are in the [user guide](docs/user-guide.md).
+Compose supports 1–32 bars, eight layers and 2,048 notes. WAV contains one active loop plus effect tails. It is a compact loop instrument; song sections, stem export and free clip dragging are outside this release. Detailed use and compatibility notes are in the [user guide](docs/user-guide.md).
 
 ## License
 

@@ -13,7 +13,7 @@ import {notesInCell,gridAction,visibleDuration,cellCoverage,pitchTop,layerColor,
 import {parsePitchName} from './studio-musical';
 import {StudioTopbar} from './studio-topbar';
 import {TrackMeter,LoopBrace} from './studio-feedback';
-import {createLayer,duplicateLayer,MAX_COMPOSE_LAYERS,validateComposition,loopWindow,type Composition,type ComposeLayer,type ComposeNote} from './compose-model';
+import {createLayer,duplicateLayer,MAX_COMPOSE_BARS,MAX_COMPOSE_LAYERS,validateComposition,loopWindow,type Composition,type ComposeLayer,type ComposeNote} from './compose-model';
 import {JsonFileImport} from './studio-json-picker';
 import type {ComposeStore} from './compose-store';
 import {ComposeAudio,adaptComposeNote} from './compose-audio';
@@ -147,7 +147,7 @@ export function ComposeWorkspace({store,eventStore,writeClipboard,taskNavigation
      <DragValue id="cp-tempo" label="Tempo" value={c.tempo} min={60} max={200} step={1} unit=" BPM" onGestureStart={()=>store.beginGesture()} onGestureEnd={()=>store.endGesture()} onChange={v=>change(value=>({...value,tempo:v}))}/>
      <DragValue id="cp-meter" label="Meter" value={c.meter} min={3} max={4} step={1} display={v=>`${v}/4`} onChange={v=>setTiming(c.bars,v as 3|4)}/>
      <DragValue id="cp-root" label="Root" value={c.root} min={36} max={72} step={1} display={composePitchName} parse={parsePitchName} onGestureStart={()=>store.beginGesture()} onGestureEnd={()=>store.endGesture()} onChange={v=>change(value=>transposeRoot(value,v))}/>
-     <DragValue id="cp-bars" label="Loop length" value={c.bars} min={1} max={4} step={1} unit=" Bars" onChange={v=>setTiming(v,c.meter)}/>
+     <DragValue id="cp-bars" label="Loop length" value={c.bars} min={1} max={MAX_COMPOSE_BARS} step={1} unit=" Bars" onChange={v=>setTiming(v,c.meter)}/>
     </section><div className="cp-export-actions">{wavAction}<button type="button" aria-label="Studio help" data-studio-help-toggle="" aria-expanded={helpOpen} onClick={()=>setHelpOpen(!helpOpen)}>?</button></div>
    </div>
    {helpOpen&&<aside className="cp-help-pop" aria-label="Studio help"><button type="button" onClick={()=>setHelpOpen(false)}>Close help ×</button><h3>Arrangement &amp; notes</h3><p>Click an empty cell to add, or drag to set its length. First click selects a note; click its selected onset again to delete. Sustain clicks select. Shift-click or right-click deletes one note. Delete / Backspace acts only inside the grid.</p><p>Drag the loop brace handles to set the active range; click the ruler to seek. Notes outside the range stay in your composition. WAV exports the active range with effect tails. Timing changes stop playback.</p><p>Solid clips show musical duration. Optional dashed tails show representative buffer allowance, not measured audible duration. Layer levels feed the master; Solo is session-only and Mute wins.</p><p>Fold uses the displayed root and Minor/Major scale. Existing out-of-scale notes stay visible. Velocity stalks set note strength; overlapping notes keep separate stalks.</p></aside>}

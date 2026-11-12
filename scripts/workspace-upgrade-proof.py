@@ -1,4 +1,4 @@
-"""Exact bundle, installed host CSS/Dialog, private storage, real WebAudio, muted Chrome."""
+"""Exact bundle, simulated SDK/Dialog, private storage, real WebAudio, muted Chromium."""
 from pathlib import Path
 from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
 from playwright.sync_api import sync_playwright
@@ -132,6 +132,32 @@ try:
     check(f'Stopping does not collapse the transport at {width}px',all(abs(a-b)<1 for old,new in zip(idle_geometry,stopped_geometry) for a,b in zip(old,new)))
    page.reload();page.locator('.ss-instrument').wait_for();page.get_by_role('button',name='Compose',exact=True).click()
    restored=composition(page);check('Reload restores composition, markers and pan but no audio consent',restored['loopStart']==.5 and restored['loopEnd']==7.5 and restored['layers'][0]['pan']==.01 and page.get_by_role('button',name='Play loop',exact=True).is_disabled())
+   # Exercise the last bar through production UI and persisted storage, not an injected document.
+   pill(page,'Loop length',32)
+   check('Arrangement exposes all 32 bars',page.locator('.cp-arrangement-bar').count()==32)
+   late=page.locator('[data-grid-beat="127.5"]').last
+   # Pick a new onset on the final eighth-note step of the visible octave.
+   late.scroll_into_view_if_needed();late.click()
+   long=composition(page)
+   check('Final bar accepts editable notes',any(n['beat']==127.5 for l in long['layers'] for n in l['notes']))
+   page.reload();page.get_by_role('button',name='Compose',exact=True).click()
+   check('Long arrangement survives reload',composition(page)==long)
+   pill(page,'Loop length',4)
+   check('Shortening retains late notes',composition(page)['layers']==long['layers'])
+   pill(page,'Loop length',32)
+   for width,height in [(1440,900),(600,650)]:
+    page.set_viewport_size({'width':width,'height':height})
+    check(f'32-bar workspace contains horizontal overflow at {width}px',page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'))
+   page.add_script_tag(url=f'http://127.0.0.1:{server.server_port}/evidence/workspace-upgrade/oracle.js')
+   long_audio=page.evaluate('''async()=>{
+    const c=studioOracle.createComposition();c.bars=32;c.tempo=200;c.layers=c.layers.slice(0,1);
+    c.layers[0].notes=[{...c.layers[0].notes[0],beat:127.5,duration:.25}];
+    const result=await studioOracle.renderCompositionWav(c);const view=new DataView(result.wav.buffer);
+    const at=Math.floor(127.5*60/200*48000);let before=0,late=0;
+    for(let i=0;i<(result.wav.length-44)/8;i++){const sample=Math.abs(view.getFloat32(44+i*8,true));if(i<at)before=Math.max(before,sample);else late=Math.max(late,sample);}
+    return {loopSeconds:result.loopSeconds,notes:result.noteCount,before,late};
+   }''')
+   check('Real Web Audio WAV contains the last-bar note at the correct time',abs(long_audio['loopSeconds']-38.4)<1e-6 and long_audio['notes']==1 and long_audio['before']==0 and long_audio['late']>0, long_audio)
    check('No browser runtime errors',not REPORT['pageErrors'],REPORT['pageErrors'])
   finally:
    page.screenshot(path=str(OUT/'final-state.png'));browser.close()

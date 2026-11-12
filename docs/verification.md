@@ -2,7 +2,27 @@
 
 Run `npm run build` for strict UI/engine type checking and a reproducible bundle build. Run `npm test` for the current JavaScript and Python regression suite. `npm run test:browser` exercises the exact compiled bundle in isolated Chromium with physically muted output.
 
-Browser coverage includes control editing, four viewport sizes, note velocity, pan, loop bounds, export, reload, audio consent, playback position and real meters. Desktop-target checks compare played buffers against all six assigned patches with a maximum absolute sample tolerance of 1e-5, accounting for Chromium offline DSP drift.
+## Platform lanes
+
+The `Verify` workflow runs build, JavaScript/Python regressions and all browser checks on `windows-latest`, `macos-latest` and `ubuntu-latest`. Each OS uploads its own receipts and browser evidence, including on failure. `.gitattributes` keeps embedded TypeScript source consistent across checkouts. These are platform-specific Chromium runs; they do not imply a Hermes native app or model was exercised.
+
+Compose accepts 1–32 bars, eight layers and 2,048 notes. Regression coverage includes both meters, last-bar editing, shortened arrangements retaining later notes, persistence/import/undo, scheduling and wraparound beyond beat 16, and long WAV timing. The browser suite renders a real last-bar note and checks its onset in the exported PCM. Existing 96 MiB canonical PCM and 192 MiB export-buffer budgets still apply; long, effect-heavy arrangements can require shorter tails or a narrower active loop.
+
+## Real Desktop and model gate
+
+`python scripts/native-desktop-proof.py --cdp-url http://127.0.0.1:9222 --allow-model` attaches to a **dedicated Hermes development/test instance** with a working configured model and this candidate plugin already installed and enabled. Install the dev requirements first. The command creates one hidden conversation and can incur normal model usage; its transcript remains in that test profile. Use a supported development build with loopback renderer CDP enabled, not a production app whose debugging interface is disabled. The test does not launch, install into, or reconfigure Hermes.
+
+It rejects a browser harness, a non-Electron renderer, an ambiguous instance, and a loaded plugin whose source differs from `desktop/plugin.js` (except Hermes's import-URL rewrite). It navigates through the actual route, checks the 32-bar control, requests Sound Draft through the native SDK, waits for a validated Fine tune candidate, observes the real create/submit/completion/cleanup calls, and verifies the current assignments remain unchanged. The forwarding observer never substitutes SDK or model responses. The candidate is discarded; failures attempt cancellation. Receipt JSON contains no prompt, reply, credentials or conversation identifiers. This test does not verify speakers or listening quality.
+
+Missing prerequisites, backend/provider errors, malformed model output and cleanup failures fail the command. There is no skip or SDK-fixture fallback. `--allow-model` is mandatory, and the script accepts only loopback HTTP CDP URLs. It is separate from `npm test` and `test:browser` so ordinary checks cannot silently call a paid model.
+
+The manually dispatched `Native Desktop and model` workflow runs the same gate on dedicated self-hosted runners labeled `sound-studio-native` plus `Windows`, `macOS` or `Linux`. Provision a test Desktop/model and set `HERMES_STUDIO_CDP_URL` in each runner's environment; install the exact checked-out candidate before dispatch. The source-match check prevents stale installed builds from yielding a green receipt. Runners are not provisioned by this repository. Do not attach these runners to untrusted pull-request workflows. Native coverage is established only after all three platform receipts pass; adding the workflow alone does not establish it.
+
+Local validation for this change: Windows strict build, 274 JavaScript tests, 61 Python tests and 129 browser checks passed. Native execution remains unverified; only the prerequisite-failure path and verifier guards have been exercised locally. Linux/macOS CI and native receipts must be collected on their actual hosts before declaring cross-platform native acceptance.
+
+## Existing coverage
+
+Browser coverage includes control editing, four viewport sizes, note velocity, pan, loop bounds, export, reload, audio consent, playback position and real meters. Desktop-target checks compare played buffers against all six assigned patches with a maximum absolute sample tolerance of 1e-4 and RMS error of 1e-5, with a negative control requiring all six event references to remain distinguishable. A local fresh-build comparison measured approximately 3.04e-5 peak / 2.67e-6 RMS drift between canonical renders; exact sample equality is not assumed.
 
 Sound Draft browser checks use a routed SDK fixture with isolated hidden conversations and recorded prompts; they never call an external model. They cover staying in Studio, progress, cancellation, completion after navigation, source-edit protection, feature-aware Fine tune tabs, immediate effect toggles, explicit audition/Stop/acceptance and invalid replies. Controller tests cover duplicate activation, exact route/socket ownership, cancellation during create, malformed replies, stale profiles, timeout without replay, SDK-supported create parameters, recovery of a lost create reply without resubmission, canonical admission cancellation and subscription detach, and legacy runtime close.
 

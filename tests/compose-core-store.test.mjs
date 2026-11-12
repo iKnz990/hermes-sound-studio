@@ -19,6 +19,26 @@ function model(){assert.equal(typeof api.createComposition,'function','strict Co
 function store(storage=memory()){assert.equal(typeof api.createComposeStore,'function','durable isolated Compose repository must be implemented');return api.createComposeStore(storage);}
 const edit=(a,tempo)=>a.update(c=>({...c,tempo}));
 
+test('32-bar documents retain late notes through shorten, save, reload, undo and JSON import',()=>{
+ const storage=memory(),a=store(storage);
+ assert.equal(a.update(c=>({...c,bars:32,layers:c.layers.map((l,i)=>({...l,notes:[{id:`late-${i}`,beat:127.75,duration:.25,pitch:45,velocity:.8}]}))})),true);
+ const full=clone(a.state.composition);
+ assert.equal(a.save('Long arrangement'),true);
+ assert.equal(a.update(c=>({...c,bars:1})),true);
+ const b=store(storage);assert.equal(b.state.composition.bars,1);
+ assert.equal(b.state.composition.layers[0].notes[0].beat,127.75);
+ assert.equal(a.undo(),true);assert.equal(a.state.composition.bars,32);
+ assert.equal(b.importComposition(JSON.parse(a.exportJson())),false,'stale storage is fenced');
+ const fresh=store(memory());assert.equal(fresh.importComposition(full),true);
+ assert.deepEqual(fresh.state.composition,full);
+ for(const meter of [3,4])assert.equal(api.validateComposition({...full,meter}).bars,32);
+ const crowded=clone(full);crowded.layers[1].notes=[];
+ crowded.layers[0].notes=Array.from({length:2048},(_,i)=>({id:`n-${i}`,beat:(i%256)/2,duration:.25,pitch:45,velocity:.8}));
+ assert.equal(api.validateComposition(crowded).layers[0].notes.length,2048);
+ crowded.layers[1].notes=[{id:'overflow',beat:0,duration:1,pitch:45,velocity:.8}];
+ assert.throws(()=>api.validateComposition(crowded),/2048/);
+});
+
 test('default composition has two independent patches and deterministic blank layers',()=>{
  const c=model();assert.equal(c.schemaVersion,'Composition/v1');assert.equal(c.layers.length,2);assert.notDeepEqual(c.layers[0].patch,c.layers[1].patch);assert.ok(c.layers.every(l=>l.notes.length));
  const before=c.layers[1].patch.osc1.vol;c.layers[0].patch.osc1.vol=.12;assert.equal(c.layers[1].patch.osc1.vol,before);
@@ -38,14 +58,14 @@ test('strict model rejects wrong keys, types, ranges, identities and invalid pat
  const c=model();
  const invalid=[
   x=>{x.extra=true},x=>{delete x.name},x=>{x.schemaVersion='Composition/v2'},x=>{x.tempo='120'},x=>{x.tempo=NaN},x=>{x.tempo=59},x=>{x.tempo=201},
-  x=>{x.meter=5},x=>{x.root=35},x=>{x.root=73},x=>{x.root=48.5},x=>{x.bars=0},x=>{x.bars=5},x=>{x.bars=1.5},x=>{x.name=' '},x=>{x.id='bad\n'},
+  x=>{x.meter=5},x=>{x.root=35},x=>{x.root=73},x=>{x.root=48.5},x=>{x.bars=0},x=>{x.bars=33},x=>{x.bars=1.5},x=>{x.name=' '},x=>{x.id='bad\n'},
   x=>{x.selectedLayer='missing'},x=>{x.layers=[]},x=>{x.layers[1].id=x.layers[0].id},x=>{x.layers[0].extra=1},x=>{x.layers[0].muted=1},
   x=>{x.layers[0].gainDb=-49},x=>{x.layers[0].gainDb=7},x=>{x.layers[0].patch.noise=2},x=>{x.layers[0].patch.unknown=true},
-  x=>{x.layers[0].notes[0].extra=true},x=>{x.layers[0].notes[0].beat=-.1},x=>{x.layers[0].notes[0].beat=16},x=>{x.layers[0].notes[0].duration=.24},
+  x=>{x.layers[0].notes[0].extra=true},x=>{x.layers[0].notes[0].beat=-.1},x=>{x.layers[0].notes[0].beat=128},x=>{x.layers[0].notes[0].duration=.24},
   x=>{x.layers[0].notes[0].duration=4.1},x=>{x.layers[0].notes[0].pitch=27},x=>{x.layers[0].notes[0].pitch=85},x=>{x.layers[0].notes[0].pitch=48.1},
   x=>{x.layers[0].notes[0].velocity=.09},x=>{x.layers[0].notes[0].velocity=1.1},x=>{x.layers[1].notes[0].id=x.layers[0].notes[0].id},
   x=>{x.layers=Array.from({length:9},(_,i)=>({...clone(x.layers[0]),id:'layer'+i,notes:[]}));x.selectedLayer='layer0'},
-  x=>{x.layers[0].notes=Array.from({length:257},(_,i)=>({...clone(x.layers[0].notes[0]),id:'note'+i}))},
+  x=>{x.layers[0].notes=Array.from({length:2049},(_,i)=>({...clone(x.layers[0].notes[0]),id:'note'+i}))},
  ];
  for(const mutate of invalid){const value=clone(c);mutate(value);assert.throws(()=>api.validateComposition(value),mutate.toString());}
  assert.throws(()=>api.validateComposition(Object.assign(Object.create({inherited:true}),c)));

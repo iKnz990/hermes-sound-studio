@@ -8295,45 +8295,11 @@ function ComposeSoundEditor({ layer: layer2, edit, onUndo, onClose, begin = () =
   ] });
 }
 
-// desktop-src/compose-view-model.ts
-function notesInCell(notes2, beat, pitch, selected) {
-  return notes2.filter((n) => n.pitch === pitch && n.beat < beat + 0.5 && n.beat + n.duration > beat).sort((a, b) => Number(b.id === selected) - Number(a.id === selected) || b.beat - a.beat || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-}
-function gridAction(notes2, selected, beat, pitch, remove) {
-  const hit = notesInCell(notes2, beat, pitch, selected)[0];
-  if (!hit) return { kind: remove ? "none" : "create" };
-  return { kind: remove || hit.id === selected && hit.beat >= beat && hit.beat < beat + 0.5 ? "delete" : "select", id: hit.id };
-}
-function visibleDuration(beat, loop, requested) {
-  const limit = Math.min(4, loop - beat, 16 - beat);
-  if (limit < 0.25) return null;
-  return Math.max(0.25, Math.min(Math.floor(limit * 4) / 4, Math.round(requested * 4) / 4));
-}
-function cellCoverage(note, beat, span = 0.5) {
-  const start = Math.max(beat, note.beat), end = Math.min(beat + span, note.beat + note.duration);
-  return end > start ? { left: (start - beat) / span, width: (end - start) / span, onset: note.beat >= beat && note.beat < beat + span } : null;
-}
-var pitchTop = (pitch) => 6 + (84 - Math.max(28, Math.min(84, pitch))) / 56 * 104;
-var colors = ["#79b8ff", "#c4a3ff", "#69d6b0", "#ffc270", "#f59bb6", "#83d8e8", "#d2d879", "#b5b9ff"];
-function layerColor(id) {
-  let hash = 2166136261;
-  for (let i = 0; i < id.length; i++) {
-    hash ^= id.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return colors[(hash >>> 0) % colors.length];
-}
-var layerAudible = (layer2, solo) => !layer2.muted && (solo.size === 0 || solo.has(layer2.id));
-function transposeRoot(c, root) {
-  const delta = root - c.root;
-  if (c.layers.some((l) => l.notes.some((n) => n.pitch + delta < 28 || n.pitch + delta > 84))) throw new RangeError("Root transpose would move a pitch outside MIDI 28\u201384. No notes changed.");
-  return { ...c, root, layers: c.layers.map((l) => ({ ...l, notes: l.notes.map((n) => ({ ...n, pitch: n.pitch + delta })) })) };
-}
-var timingChanged = (before, after) => before.id !== after.id || before.tempo !== after.tempo || before.meter !== after.meter || before.bars !== after.bars || before.loopStart !== after.loopStart || before.loopEnd !== after.loopEnd;
-
 // desktop-src/compose-model.ts
 var MAX_COMPOSE_LAYERS = 8;
-var MAX_COMPOSE_NOTES = 256;
+var MAX_COMPOSE_BARS = 32;
+var MAX_COMPOSE_BEATS = MAX_COMPOSE_BARS * 4;
+var MAX_COMPOSE_NOTES = 2048;
 function shape2(value, keys, what) {
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype || Reflect.ownKeys(value).length !== keys.length || keys.some((key) => !Object.hasOwn(value, key))) throw new TypeError(`${what}: invalid keys`);
 }
@@ -8352,12 +8318,12 @@ function identity(value, seen, what) {
   return id;
 }
 function notes(value, seen) {
-  if (!Array.isArray(value) || value.length > MAX_COMPOSE_NOTES) throw new RangeError("notes: at most 256 notes");
+  if (!Array.isArray(value) || value.length > MAX_COMPOSE_NOTES) throw new RangeError(`notes: at most ${MAX_COMPOSE_NOTES} notes`);
   const result = [];
   for (const note of value) {
     shape2(note, ["id", "beat", "duration", "pitch", "velocity"], "note");
-    const id = identity(note.id, seen, "note id"), beat = number(note.beat, 0, 16, "beat"), duration = number(note.duration, 0.25, 4, "duration");
-    if (beat + duration > 16) throw new RangeError("note end: must not exceed beat 16");
+    const id = identity(note.id, seen, "note id"), beat = number(note.beat, 0, MAX_COMPOSE_BEATS, "beat"), duration = number(note.duration, 0.25, 4, "duration");
+    if (beat + duration > MAX_COMPOSE_BEATS) throw new RangeError(`note end: must not exceed beat ${MAX_COMPOSE_BEATS}`);
     result.push({ id, beat, duration, pitch: number(note.pitch, 28, 84, "pitch", true), velocity: number(note.velocity, 0.1, 1, "velocity") });
   }
   return result;
@@ -8376,9 +8342,9 @@ function validateComposition(value) {
   if (!Array.isArray(value.layers) || value.layers.length < 1 || value.layers.length > MAX_COMPOSE_LAYERS) throw new RangeError("layers: expected 1\u20138 layers");
   const seen = /* @__PURE__ */ new Set(), id = identity(value.id, seen, "composition id"), layers = [];
   for (const item of value.layers) layers.push(layer(item, seen));
-  if (layers.reduce((count, item) => count + item.notes.length, 0) > MAX_COMPOSE_NOTES) throw new RangeError("composition: at most 256 notes total");
+  if (layers.reduce((count, item) => count + item.notes.length, 0) > MAX_COMPOSE_NOTES) throw new RangeError(`composition: at most ${MAX_COMPOSE_NOTES} notes total`);
   if (typeof value.selectedLayer !== "string" || !layers.some((item) => item.id === value.selectedLayer)) throw new TypeError("selectedLayer: unknown layer");
-  const bars = number(value.bars, 1, 4, "bars", true);
+  const bars = number(value.bars, 1, MAX_COMPOSE_BARS, "bars", true);
   const loop = windowed ? { loopStart: number(value.loopStart, 0, bars * value.meter - 0.5, "loop start"), loopEnd: number(value.loopEnd, 0.5, bars * value.meter, "loop end") } : {};
   if (windowed && loop.loopEnd - loop.loopStart < 0.5) throw new RangeError("Loop must contain at least half a beat");
   return { schemaVersion: "Composition/v1", id, name: text(value.name, "composition name"), tempo: number(value.tempo, 60, 200, "tempo"), meter: value.meter, root: number(value.root, 36, 72, "root", true), bars, layers, selectedLayer: value.selectedLayer, ...loop };
@@ -8407,6 +8373,42 @@ function createComposition() {
   chords.gainDb = -12;
   return validateComposition({ schemaVersion: "Composition/v1", id: crypto.randomUUID(), name: "Untitled composition", tempo: 120, meter: 4, root: 57, bars: 2, layers: [bass, chords], selectedLayer: bass.id });
 }
+
+// desktop-src/compose-view-model.ts
+function notesInCell(notes2, beat, pitch, selected) {
+  return notes2.filter((n) => n.pitch === pitch && n.beat < beat + 0.5 && n.beat + n.duration > beat).sort((a, b) => Number(b.id === selected) - Number(a.id === selected) || b.beat - a.beat || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+function gridAction(notes2, selected, beat, pitch, remove) {
+  const hit = notesInCell(notes2, beat, pitch, selected)[0];
+  if (!hit) return { kind: remove ? "none" : "create" };
+  return { kind: remove || hit.id === selected && hit.beat >= beat && hit.beat < beat + 0.5 ? "delete" : "select", id: hit.id };
+}
+function visibleDuration(beat, loop, requested) {
+  const limit = Math.min(4, loop - beat, MAX_COMPOSE_BEATS - beat);
+  if (limit < 0.25) return null;
+  return Math.max(0.25, Math.min(Math.floor(limit * 4) / 4, Math.round(requested * 4) / 4));
+}
+function cellCoverage(note, beat, span = 0.5) {
+  const start = Math.max(beat, note.beat), end = Math.min(beat + span, note.beat + note.duration);
+  return end > start ? { left: (start - beat) / span, width: (end - start) / span, onset: note.beat >= beat && note.beat < beat + span } : null;
+}
+var pitchTop = (pitch) => 6 + (84 - Math.max(28, Math.min(84, pitch))) / 56 * 104;
+var colors = ["#79b8ff", "#c4a3ff", "#69d6b0", "#ffc270", "#f59bb6", "#83d8e8", "#d2d879", "#b5b9ff"];
+function layerColor(id) {
+  let hash = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    hash ^= id.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return colors[(hash >>> 0) % colors.length];
+}
+var layerAudible = (layer2, solo) => !layer2.muted && (solo.size === 0 || solo.has(layer2.id));
+function transposeRoot(c, root) {
+  const delta = root - c.root;
+  if (c.layers.some((l) => l.notes.some((n) => n.pitch + delta < 28 || n.pitch + delta > 84))) throw new RangeError("Root transpose would move a pitch outside MIDI 28\u201384. No notes changed.");
+  return { ...c, root, layers: c.layers.map((l) => ({ ...l, notes: l.notes.map((n) => ({ ...n, pitch: n.pitch + delta })) })) };
+}
+var timingChanged = (before, after) => before.id !== after.id || before.tempo !== after.tempo || before.meter !== after.meter || before.bars !== after.bars || before.loopStart !== after.loopStart || before.loopEnd !== after.loopEnd;
 
 // desktop-src/compose-live-cache.ts
 var COMPOSE_PCM_BUDGET = 96 * 1024 * 1024;
@@ -9644,7 +9646,7 @@ function ComposeWorkspace({ store, eventStore, writeClipboard, taskNavigation, s
           /* @__PURE__ */ jsx16(DragValue, { id: "cp-tempo", label: "Tempo", value: c.tempo, min: 60, max: 200, step: 1, unit: " BPM", onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => change((value) => ({ ...value, tempo: v })) }),
           /* @__PURE__ */ jsx16(DragValue, { id: "cp-meter", label: "Meter", value: c.meter, min: 3, max: 4, step: 1, display: (v) => `${v}/4`, onChange: (v) => setTiming(c.bars, v) }),
           /* @__PURE__ */ jsx16(DragValue, { id: "cp-root", label: "Root", value: c.root, min: 36, max: 72, step: 1, display: composePitchName, parse: parsePitchName, onGestureStart: () => store.beginGesture(), onGestureEnd: () => store.endGesture(), onChange: (v) => change((value) => transposeRoot(value, v)) }),
-          /* @__PURE__ */ jsx16(DragValue, { id: "cp-bars", label: "Loop length", value: c.bars, min: 1, max: 4, step: 1, unit: " Bars", onChange: (v) => setTiming(v, c.meter) })
+          /* @__PURE__ */ jsx16(DragValue, { id: "cp-bars", label: "Loop length", value: c.bars, min: 1, max: MAX_COMPOSE_BARS, step: 1, unit: " Bars", onChange: (v) => setTiming(v, c.meter) })
         ] }),
         /* @__PURE__ */ jsxs16("div", { className: "cp-export-actions", children: [
           wavAction,

@@ -1,0 +1,2 @@
+# Embedded TypeScript is exported verbatim; keep its bytes stable across platforms.
+assets/*.ts text eol=lf

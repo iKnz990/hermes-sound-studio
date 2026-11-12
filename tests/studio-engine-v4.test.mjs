@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {transform,build} from 'esbuild';
 import {fileURLToPath} from 'node:url';
 
-const source=await readFile(new URL('../assets/studio-engine.ts',import.meta.url),'utf8');
+const source=(await readFile(new URL('../assets/studio-engine.ts',import.meta.url),'utf8')).replace(/\r\n/g,'\n');
 const stub=source.replace(/export async function renderSoundPatch\([\s\S]*?\n}\n\n\/\*\* Analysis/,`export async function renderSoundPatch(patch,options={}) { globalThis.__studioRenders.push({patch,options}); return new Promise((resolve,reject)=>globalThis.__studioPending.push({resolve,reject})); }\n\n/** Analysis`);
 assert.notEqual(stub,source);
 const compiled=await transform(stub,{loader:'ts',format:'esm'});

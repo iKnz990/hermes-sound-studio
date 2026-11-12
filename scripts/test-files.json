@@ -25,6 +25,7 @@
     "tests/studio-background-draft.test.mjs"
   ],
   "python": [
+    "test_native_verification.py",
     "test_backend.py",
     "test_compose_fx_parameters.py",
     "test_studio_backend.py",

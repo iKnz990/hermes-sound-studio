@@ -1,4 +1,4 @@
-import type {Composition,ComposeNote} from './compose-model';
+import {MAX_COMPOSE_BEATS,type Composition,type ComposeNote} from './compose-model';
 
 /** Session/view policy only. Never adds fields to Composition/v1. */
 export function notesAtBeat(notes:readonly ComposeNote[],beat:number,pitch:number,selected:string|null):ComposeNote[]{
@@ -16,7 +16,7 @@ export function gridAction(notes:readonly ComposeNote[],selected:string|null,bea
 }
 /** Null means the onset is outside the visible loop; stored notes are not changed. */
 export function visibleDuration(beat:number,loop:number,requested:number):number|null{
- const limit=Math.min(4,loop-beat,16-beat);
+ const limit=Math.min(4,loop-beat,MAX_COMPOSE_BEATS-beat);
  if(limit<.25)return null;
  return Math.max(.25,Math.min(Math.floor(limit*4)/4,Math.round(requested*4)/4));
 }
